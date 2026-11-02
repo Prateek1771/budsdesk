@@ -67,6 +67,8 @@ If you'd rather not install anything on Windows, grab the portable [BudsDesk.exe
 
 On Windows 10, you need the [WebView2 runtime](https://developer.microsoft.com/microsoft-edge/webview2/), which Windows 11 already has. On Linux, you need BlueZ (`bluetoothctl`), which most desktop distros ship with.
 
+On Linux, BudsDesk draws its window on the CPU by default, because GPU rendering fails on some setups (NVIDIA on Wayland, VMs). Run `BUDSDESK_GPU=1 budsdesk` to try GPU rendering. If no window appears, please [open an issue](https://github.com/Prateek1771/budsdesk/issues) and include the terminal output.
+
 ## Run from source
 
 Requires Python 3.10+.

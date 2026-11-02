@@ -263,7 +263,7 @@ const TILES = {
   hero: { name: "Buds", w: 2, h: 2, c: "light", s: "soft", render: () => `
       <div class="lbl"><span>${modelName()}</span><span>${S.firmware ? "FW " + S.firmware : ""}</span></div>
       <div class="art dots">${dots("buds")}</div>
-      <div class="foot"><div><div class="title">${S.status === "connected" ? "Connected" : S.status === "unavailable" ? "Busy" : "Searching"}</div>
+      <div class="foot"><div><div class="title">${S.status === "connected" ? "Connected" : S.status === "unavailable" ? "Busy" : S.status === "nodevice" ? "No device" : "Searching"}</div>
         <div class="lbl" style="margin-top:4px">${S.serial ? "SN " + S.serial.slice(-6) : "[" + S.status + "]"}</div></div>
         <div class="lbl">${S.wear.left || S.wear.right ? "IN EAR" : "IDLE"}</div></div>` },
   battery: { name: "Battery", w: 2, h: 1, c: "dark", s: "soft", render: () => {
@@ -354,7 +354,7 @@ function gseg(opts, cur, act, cls = "") {
 const quickCell = (label, on, state) => () => `<div class="cl"><div class="cl-title">${label}</div>
   <span class="ltog ${on() ? "on" : ""}"><span class="goo"><i class="drip"></i><i class="th"></i></span></span><div class="cl-sub">${state()}</div></div>`;
 Object.assign(TILES.hero, { blob: () => `<div class="cl"><svg class="cl-buds ${S.status === "connected" ? "live" : ""}" viewBox="0 0 200 120" aria-hidden="true"><path class="l" d="${BUD}"/><path class="r" d="${BUD}"/></svg>
-  <div class="cl-title">${S.status === "connected" ? "Connected" : S.status === "unavailable" ? "Busy" : "Searching"}</div>
+  <div class="cl-title">${S.status === "connected" ? "Connected" : S.status === "unavailable" ? "Busy" : S.status === "nodevice" ? "No device" : "Searching"}</div>
   <div class="cl-sub">${S.wear.left || S.wear.right ? "in ear" : "idle"} · fw ${S.firmware || "–"}</div></div>` });
 Object.assign(TILES.battery, { blob: () => `<div class="cl"><div class="cl-bat">${BATS().map(([k, l]) => {
     const b = S.battery[k], p = b ? b.pct : 0;

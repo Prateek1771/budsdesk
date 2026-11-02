@@ -6,6 +6,15 @@ import json
 import os
 import sys
 
+if sys.platform == "linux":
+    # Qt WebEngine needs working EGL/OpenGL, which fails on many setups (NVIDIA + Wayland, VMs, WSL), leaving no
+    # window at all (issue #1). This small UI renders fine on the CPU, so default to software; BUDSDESK_GPU=1 opts out.
+    # setdefault: anything the user exports wins.
+    if os.environ.get("BUDSDESK_GPU") != "1":
+        os.environ.setdefault("QT_QUICK_BACKEND", "software")
+        os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu")
+    os.environ.setdefault("QT_QPA_PLATFORM", "wayland;xcb")  # fall back to XWayland if native Wayland can't start
+
 import webview
 
 import buds
@@ -153,6 +162,12 @@ def make_tray(window, session, quit_app):
     """Tray icon on Windows/Linux. macOS: none (pystray and pywebview both need the main thread)."""
     if sys.platform == "darwin":
         return None
+    if sys.platform == "linux":
+        try:  # pystray's only working Linux tray is AppIndicator; its X11 fallback can't dock on Wayland (issue #1)
+            import gi  # noqa: F401
+        except ImportError:
+            return None
+        os.environ.setdefault("PYSTRAY_BACKEND", "appindicator")
     try:
         import pystray
         from PIL import Image, ImageDraw
@@ -223,7 +238,8 @@ def main():
 
     window.events.closing += on_closing
     icon = make_tray(window, session, quit_app)
-    webview.start(lambda: session.pick(sys.argv[1] if len(sys.argv) > 1 else None))
+    webview.start(lambda: session.pick(sys.argv[1] if len(sys.argv) > 1 else None),
+                  gui="qt" if sys.platform == "linux" else None)  # Linux bundle ships Qt; skip the GTK probe
 
 
 if __name__ == "__main__":
