@@ -39,17 +39,33 @@ BudsDesk reads the model from the Bluetooth name and serial number, then shows o
 
 ## Install
 
-Download the build for your OS from the [Actions](../../actions) artifacts or [Releases](../../releases):
-
-| OS | Download | Notes |
+| OS | Download | Then |
 |---|---|---|
-| Windows 10/11 | `BudsDesk-windows.zip` → `BudsDesk.exe` | Needs the WebView2 runtime, which Windows 11 already has |
-| macOS 12+ | `BudsDesk-macos.zip` → `BudsDesk.app` | It's unsigned, so right-click → **Open** the first time. Allow Bluetooth access when asked. |
-| Linux | `BudsDesk-linux.tar.gz` → `BudsDesk/BudsDesk` | BlueZ. Your user needs Bluetooth access, which is usually the default on desktop distros. |
+| **Windows 10/11** | [**BudsDesk-Setup.exe**](https://github.com/Prateek1771/budsdesk/releases/latest/download/BudsDesk-Setup.exe) | Double-click it and follow the steps. No admin rights needed. BudsDesk lands in the Start menu, and you can remove it from *Settings → Apps*. |
+| **macOS 12+** | [**BudsDesk.dmg**](https://github.com/Prateek1771/budsdesk/releases/latest/download/BudsDesk.dmg) | Open it and drag BudsDesk onto **Applications**. The first time, right-click the app → **Open**, because it isn't signed. Allow Bluetooth when asked. |
+| **Linux (x86_64)** | One command, below | It adds BudsDesk to your app menu and installs the `budsdesk` command. |
 
-Pair the earbuds in your OS Bluetooth settings first. BudsDesk finds paired Nothing and CMF devices on its own.
+Or install from a terminal:
 
-**The earbuds accept one controller at a time.** If BudsDesk shows *busy*, close Nothing X or turn off your phone's Bluetooth. It reconnects by itself.
+```sh
+# Linux
+curl -fsSL https://raw.githubusercontent.com/Prateek1771/budsdesk/main/install.sh | sh
+```
+
+```powershell
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/Prateek1771/budsdesk/main/install.ps1 | iex
+```
+
+If you'd rather not install anything on Windows, grab the portable [BudsDesk.exe](https://github.com/Prateek1771/budsdesk/releases/latest/download/BudsDesk.exe) and run it. Every build is listed on the [Releases](https://github.com/Prateek1771/budsdesk/releases) page.
+
+### First run
+
+1. Pair your earbuds or headphones in your computer's Bluetooth settings.
+2. Open BudsDesk. It finds paired Nothing and CMF devices by itself, and shows a picker if you have more than one.
+3. If it says *busy*, close Nothing X on your phone or turn off the phone's Bluetooth. The earbuds talk to one controller at a time, and BudsDesk reconnects on its own.
+
+On Windows 10, you need the [WebView2 runtime](https://developer.microsoft.com/microsoft-edge/webview2/), which Windows 11 already has. On Linux, you need BlueZ (`bluetoothctl`), which most desktop distros ship with.
 
 ## Run from source
 
@@ -69,9 +85,10 @@ python app.py AA:BB:CC:DD:EE:FF   # or a specific one
 ```sh
 pip install pyinstaller
 python -m PyInstaller --noconfirm budsdesk.spec   # or build.bat on Windows
+iscc /DVersion=1.0.0 installer.iss               # Windows installer (Inno Setup 6)
 ```
 
-The output goes to `dist/`. GitHub Actions (`.github/workflows/build.yml`) builds all three OSes on every push and attaches the builds to a release when you push a `v*` tag.
+The output goes to `dist/`. GitHub Actions (`.github/workflows/build.yml`) builds all three OSes on every push and publishes a GitHub Release with the installer, portable exe, DMG and Linux tarball when you push a `v*` tag.
 
 ## How it works
 
