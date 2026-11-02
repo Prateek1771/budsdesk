@@ -19,6 +19,7 @@ import webview
 
 import audio
 import buds
+import localserver
 import platform_bt
 
 APP = "BudsDesk"
@@ -43,6 +44,8 @@ def prefs_dir() -> str:
 
 PREFS_DIR = prefs_dir()
 LAYOUT, DEVICE = os.path.join(PREFS_DIR, "layout.json"), os.path.join(PREFS_DIR, "device.json")
+MEDIA_DIR = os.path.join(PREFS_DIR, "media")  # user images/videos for the media tile (#5), served at /media/
+MEDIA_TYPES = {"image": ("Images (*.jpg;*.jpeg;*.png;*.gif;*.webp;*.avif)",), "video": ("Videos (*.mp4;*.webm;*.mov;*.m4v)",)}
 
 
 def _read(path):
@@ -95,6 +98,7 @@ class Session:
 class Api:
     def __init__(self, session: Session, volume: "audio.Volume", meter: "audio.Meter"):
         self._s, self._vol, self._meter = session, volume, meter
+        self._window = None  # set after create_window (needed for native file dialogs)
 
     def _b(self):
         return self._s.b
@@ -118,6 +122,27 @@ class Api:
 
     def set_volume(self, level):
         self._vol.set(level)
+
+    # media tile (#5): pick images/videos -> copied into MEDIA_DIR -> served by the local server at /media/<name>
+    def pick_media(self, kind="image", multiple=False):
+        import shutil, uuid
+        if kind not in MEDIA_TYPES or not self._window:
+            return []
+        paths = self._window.create_file_dialog(webview.OPEN_DIALOG, allow_multiple=bool(multiple), file_types=MEDIA_TYPES[kind]) or []
+        os.makedirs(MEDIA_DIR, exist_ok=True)
+        out = []
+        for src in paths:
+            name = f"{uuid.uuid4().hex[:10]}{os.path.splitext(src)[1].lower()}"
+            shutil.copyfile(src, os.path.join(MEDIA_DIR, name))
+            out.append("/media/" + name)
+        return out
+
+    def forget_media(self, urls):
+        """Delete copied files the media tile no longer uses (only names inside MEDIA_DIR)."""
+        for u in urls or []:
+            name = os.path.basename(str(u))
+            if str(u).startswith("/media/") and name and os.path.isfile(os.path.join(MEDIA_DIR, name)):
+                os.remove(os.path.join(MEDIA_DIR, name))
 
     # output level (#3 waves): latest (left, right) peak 0..1, sampled ~30 Hz off-thread; None = unavailable
     def levels(self):
@@ -228,8 +253,12 @@ def main():
     session = Session(on_change)
     session.scan()
     volume, meter = audio.Volume(), audio.Meter().start()
-    window = webview.create_window(APP, os.path.join(HERE, "ui", "index.html"), js_api=Api(session, volume, meter),
+    # UI over http://127.0.0.1:<random> (not file://): YouTube embeds need a referrer (#5) and /media/ serves user files
+    server = localserver.LocalServer(os.path.join(HERE, "ui"), MEDIA_DIR)
+    api = Api(session, volume, meter)
+    window = webview.create_window(APP, server.url + "/index.html", js_api=api,
                                    width=1060, height=860, min_size=(420, 560), background_color="#e7e8ec")
+    api._window = window
 
     def quit_app():
         nonlocal quitting

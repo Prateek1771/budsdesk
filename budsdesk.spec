@@ -3,7 +3,7 @@ import os
 import re
 import sys
 
-a = Analysis(["app.py"], datas=[("ui", "ui")], hiddenimports=["models", "platform_bt", "audio"] + (["pycaw", "pycaw.pycaw", "comtypes", "comtypes.stream"] if sys.platform == "win32" else ["pulsectl"] if sys.platform == "linux" else []))
+a = Analysis(["app.py"], datas=[("ui", "ui")], hiddenimports=["models", "platform_bt", "audio", "localserver"] + (["pycaw", "pycaw.pycaw", "comtypes", "comtypes.stream"] if sys.platform == "win32" else ["pulsectl"] if sys.platform == "linux" else []))
 
 if sys.platform == "linux":
     # Libraries that must come from the user's system, never from the (older) build machine: they load the
@@ -30,6 +30,8 @@ if sys.platform == "darwin":
     coll = COLLECT(exe, a.binaries, a.datas, name="BudsDesk")
     app = BUNDLE(coll, name="BudsDesk.app", icon="ui/icon.png", bundle_identifier="io.github.prateek1771.budsdesk",
                  info_plist={"NSBluetoothAlwaysUsageDescription": "BudsDesk talks to your Nothing / CMF earbuds over Bluetooth.",
-                             "NSHighResolutionCapable": True})
+                             "NSHighResolutionCapable": True,
+                             # the UI is served from http://127.0.0.1 (#5); WKWebView needs this to load it
+                             "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True}})
 else:
     exe = EXE(pyz, a.scripts, a.binaries, a.datas, [], name="BudsDesk", console=False, icon="ui/icon.ico")

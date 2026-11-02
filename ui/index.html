@@ -192,6 +192,31 @@ select option { background: var(--sheet); color: var(--fg); }
 
 /* dial gauge */
 .dialwrap { display: grid; grid-template-columns: clamp(90px, 34cqw, 170px) 1fr; gap: 16px; flex: 1; min-height: 0; margin-top: 8px; }
+/* media tile (#5) */
+.tile.media { padding: 0; }
+.m-stage { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; background: #000; container-type: size; }
+.m-stage::after { content: ""; position: absolute; inset: 0; background: #000; opacity: var(--dim, 0); pointer-events: none; transition: opacity .3s var(--ease); }
+.m-stage .m-img, .m-stage .m-vid { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 1.2s var(--ease); }
+.m-stage.fit-contain .m-img, .m-stage.fit-contain .m-vid { object-fit: contain; }
+.m-stage .m-img.on, .m-stage .m-vid { opacity: 1; }
+/* YouTube iframe: always 16:9, scaled to cover (or fit) the tile; never takes clicks */
+.m-stage .m-yt { position: absolute; top: 50%; left: 50%; border: 0; pointer-events: none; aspect-ratio: 16 / 9; height: auto; transform: translate(-50%, -50%);
+  width: max(100cqw, calc(100cqh * 16 / 9)); }
+.m-stage.fit-contain .m-yt { width: min(100cqw, calc(100cqh * 16 / 9)); }
+.m-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; padding: 14px;
+  color: #f4f4f5; background: #161617; }
+.m-empty b { font: 600 15px var(--sans); }
+.m-empty span { font: 10px var(--mono); opacity: .6; letter-spacing: .06em; text-transform: uppercase; }
+.m-cfg { position: absolute; right: 10px; bottom: 10px; width: 32px; height: 32px; border-radius: 50%; border: 0; background: #1c1c1e; color: #fff; font-size: 15px; box-shadow: 0 2px 10px rgba(0,0,0,.35);
+  cursor: pointer; opacity: 0; transition: opacity .2s var(--ease); z-index: 3; backdrop-filter: blur(6px); }
+.tile.media:hover .m-cfg, .m-cfg:focus-visible { opacity: 1; }
+.m-items { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.m-item { display: flex; align-items: center; gap: 8px; font: 11px var(--mono); }
+.m-item span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-item .b { height: 26px; width: 26px; padding: 0; flex: none; }
+.m-add { display: flex; gap: 6px; }
+.m-add input { flex: 1; min-width: 0; height: 34px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--tf) 18%, transparent); background: transparent;
+  color: inherit; padding: 0 10px; font: 12px var(--sans); }
 .tile canvas.waves { flex: 1; width: 100%; min-height: 0; display: block; margin-top: 8px; --wave-accent: var(--t-accent); }
 .gauge { width: 100%; height: auto; align-self: center; touch-action: none; cursor: grab; outline: none; border-radius: 50%; }
 .gauge.drag, .cl-vol.drag { cursor: grabbing; }
@@ -221,7 +246,7 @@ select option { background: var(--sheet); color: var(--fg); }
 .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.35); opacity: 0; pointer-events: none; transition: opacity .25s var(--ease); z-index: 9; }
 .sheet { position: fixed; top: 10px; right: 10px; bottom: 10px; width: min(360px, calc(100vw - 20px)); background: var(--sheet); color: var(--fg); border-radius: 26px; padding: 22px;
   z-index: 10; overflow: auto; opacity: 0; pointer-events: none; transform: translateX(12px); transition: opacity .25s var(--ease), transform .25s var(--ease); box-shadow: 0 20px 60px -20px rgba(0,0,0,.4); --tf: var(--fg); --bg: var(--sheet); }
-.open .scrim { opacity: 1; pointer-events: auto; } .open .sheet { opacity: 1; pointer-events: auto; transform: none; }
+.open .scrim, .mopen .scrim { opacity: 1; pointer-events: auto; } .open #sheet, .mopen #mediaSheet { opacity: 1; pointer-events: auto; transform: none; }
 .sheet h3 { font: 900 20px var(--dot); text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
 .opt { margin-bottom: 18px; }
 .opt .lbl { margin-bottom: 8px; }
@@ -262,6 +287,18 @@ select option { background: var(--sheet); color: var(--fg); }
   <div class="opt"><div class="lbl">Hidden tiles</div><div class="hidden-list" id="hiddenList"></div></div>
   <div class="opt"><button class="b red" aria-pressed="true" id="resetBtn" style="width:100%">Reset layout</button></div>
   <p class="empty">In Edit mode, drag a tile to move it. Use its buttons to change size, shape and color, or to hide it.</p>
+</aside>
+<aside class="sheet" id="mediaSheet" aria-label="Media tile settings">
+  <h3>Media <button class="b" id="closeMedia">Done</button></h3>
+  <div class="opt"><div class="lbl">Show</div><div class="seg" data-mcfg="mode">
+    <button class="b" data-v="image">Image</button><button class="b" data-v="slideshow">Slideshow</button><button class="b" data-v="video">Video</button></div></div>
+  <div class="opt"><div class="lbl" id="mItemsLbl">Image</div><div class="m-items" id="mItems"></div>
+    <div class="m-add"><input id="mUrl" type="url" placeholder="Paste an image URL" spellcheck="false"><button class="b" id="mAddUrl">Add</button></div>
+    <button class="b" id="mPick" style="width:100%;margin-top:8px">Choose file…</button></div>
+  <div class="opt" id="mIntervalOpt"><div class="lbl">Change every <span id="vMInt"></span></div><input type="range" min="3" max="120" step="1" data-mcfg="interval"></div>
+  <div class="opt"><div class="lbl">Fit</div><div class="seg" data-mcfg="fit"><button class="b" data-v="cover">Fill</button><button class="b" data-v="contain">Fit</button></div></div>
+  <div class="opt"><div class="lbl">Dim <span id="vMDim"></span></div><input type="range" min="0" max="70" step="5" data-mcfg="dim"></div>
+  <p class="empty">Videos play muted and on loop. YouTube links work (videos or playlists), as do your own .mp4/.webm files and images.</p>
 </aside>
 
 <script>
@@ -364,6 +401,7 @@ const TILES = {
       <div class="lbl"><span>Find my buds</span><span class="dots">${dots("find", 3)}</span></div><div class="grow"></div>
       <div class="seg">${["left", "right", "both"].map(w => `<button class="b ${ringing === w ? "ringing" : ""}" data-act="ring" data-v="${w}">${w}</button>`).join("")}
       <button class="b red" aria-pressed="true" data-act="ring" data-v="off">Stop</button></div>` },
+  media: { name: "Media", w: 2, h: 1, c: "dark", s: "soft", render: () => mediaTile() },
   waves: { name: "Waves", w: 2, h: 1, c: "dark", s: "soft", render: () => `
       <div class="lbl"><span>Waves</span><span class="wlbl">${waveLabel()}</span></div><canvas class="waves" aria-hidden="true"></canvas>` },
   info: { name: "Device info", w: 1, h: 1, c: "dark", s: "soft", render: () => `
@@ -487,6 +525,102 @@ Object.assign(TILES.gestures, { blob: () => `<div class="cl" style="justify-cont
 Object.assign(TILES.find, { blob: () => `<div class="cl"><div class="cl-title">Find my buds</div><div class="cl-find">${[["left", "L"], ["right", "R"], ["both", "L+R"]].map(([v, l]) =>
     `<button class="rip ${ringing === v ? "ringing" : ""}" data-act="ring" data-v="${v}">${l}</button>`).join("")}<button class="rip stop" data-act="ring" data-v="off">Stop</button></div></div>` });
 Object.assign(TILES.info, { blob: () => `<div class="cl"><div class="cl-sub">firmware</div><div class="cl-big">${S.firmware || "–"}</div></div>` });
+Object.assign(TILES.media, { blob: () => mediaTile() });
+
+/* ── Media tile (#5): image / slideshow / muted looping video (YouTube or a local file) ──
+   Files the user picks are copied into the prefs media folder and served by the local server at /media/… */
+const MDEF = { mode: "image", items: { image: [], slideshow: [], video: [] }, interval: 8, fit: "cover", dim: 0 };
+const mcfg = () => { const c = (P.tiles.media && P.tiles.media.cfg) || {}; return { ...MDEF, ...c, items: { ...MDEF.items, ...(c.items || {}) } }; };
+const esc = v => String(v).replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+const okUrl = u => /^https?:\/\//i.test(u) || /^\/media\/[\w.-]+$/.test(u); // only web links or our own copied files
+function ytParse(u) { // any youtube.com / youtu.be link -> {id, list}
+  try {
+    const x = new URL(u); if (!/(^|\.)youtube(-nocookie)?\.com$|(^|\.)youtu\.be$/.test(x.hostname)) return null;
+    const list = x.searchParams.get("list");
+    let id = x.hostname.endsWith("youtu.be") ? x.pathname.slice(1) : x.searchParams.get("v");
+    if (!id) { const m = x.pathname.match(/\/(embed|shorts|live|v)\/([\w-]{6,})/); id = m && m[2]; }
+    id = id && id.replace(/[^\w-]/g, "");
+    return id || list ? { id: id || null, list: list && list.replace(/[^\w-]/g, "") } : null;
+  } catch { return null; }
+}
+function ytSrc(yt) {
+  const q = new URLSearchParams({ autoplay: 1, mute: 1, controls: 0, playsinline: 1, loop: 1, rel: 0, disablekb: 1, iv_load_policy: 3, enablejsapi: 1, origin: location.origin });
+  if (yt.list) { q.set("list", yt.list); return `https://www.youtube-nocookie.com/embed/${yt.id || "videoseries"}?${q}`; }
+  q.set("playlist", yt.id); // loop=1 needs playlist=<same id> for a single video
+  return `https://www.youtube-nocookie.com/embed/${yt.id}?${q}`;
+}
+function mediaStage(c) {
+  const list = (c.items[c.mode] || []).filter(okUrl);
+  if (!list.length) return `<div class="m-empty"><b>${c.mode === "video" ? "No video yet" : c.mode === "slideshow" ? "No pictures yet" : "No image yet"}</b><span>Add an image, a slideshow or a muted video</span><button class="b" data-media-cfg>Set up</button></div>`;
+  if (c.mode === "video") {
+    const u = list[0], yt = ytParse(u);
+    return yt ? `<iframe class="m-yt" src="${esc(ytSrc(yt))}" allow="autoplay; encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" tabindex="-1" title="Video"></iframe>`
+      : `<video class="m-vid" src="${esc(u)}" muted loop autoplay playsinline></video>`;
+  }
+  if (c.mode === "image") return `<img class="m-img on" src="${esc(list[0])}" alt="">`;
+  return `<img class="m-img on" src="${esc(list[0])}" alt=""><img class="m-img" src="${esc(list[1 % list.length])}" alt="">`;
+}
+function mediaTile() {
+  const c = mcfg(), key = JSON.stringify([c.mode, c.items[c.mode], c.fit]);
+  // data-live: morph() leaves the stage alone unless data-key/style change (no video/slideshow restart on state pushes)
+  return `<div class="m-stage fit-${c.fit === "contain" ? "contain" : "cover"}" data-live data-key="${esc(key)}" data-mode="${esc(c.mode)}" data-i="0" style="--dim:${(+c.dim || 0) / 100}">${mediaStage(c)}</div>
+    <button class="m-cfg" data-media-cfg aria-label="Media settings" title="Media settings">⚙</button>`;
+}
+function slideTick(now = Date.now()) { // crossfade: swap .on between the two <img>s, then preload the next picture
+  const c = mcfg(), list = (c.items.slideshow || []).filter(okUrl);
+  if (c.mode !== "slideshow" || list.length < 2) return;
+  document.querySelectorAll('.m-stage[data-mode="slideshow"]').forEach(st => {
+    const due = +(st.dataset.due || 0);
+    if (!due) { st.dataset.due = now + c.interval * 1000; return; }
+    if (now < due) return;
+    const imgs = [...st.querySelectorAll(".m-img")]; if (imgs.length < 2) return;
+    const i = (+st.dataset.i + 1) % list.length, show = imgs.find(x => !x.classList.contains("on")), hide = imgs.find(x => x.classList.contains("on"));
+    show.src = list[i]; show.classList.add("on"); hide.classList.remove("on");
+    st.dataset.i = i; st.dataset.due = now + c.interval * 1000;
+    setTimeout(() => { hide.src = list[(i + 1) % list.length]; }, 1400);
+  });
+}
+setInterval(() => { if (!document.hidden) slideTick(); }, 1000);
+// pause videos while the window is hidden / minimised to the tray
+document.addEventListener("visibilitychange", () => {
+  document.querySelectorAll(".m-stage video").forEach(v => document.hidden ? v.pause() : v.play().catch(() => {}));
+  document.querySelectorAll(".m-stage iframe.m-yt").forEach(f => { try { f.contentWindow.postMessage(JSON.stringify({ event: "command", func: document.hidden ? "pauseVideo" : "playVideo", args: [] }), "*"); } catch {} });
+});
+function saveMcfg(patch) {
+  P.tiles.media = { ...tp("media"), cfg: { ...mcfg(), ...patch } }; save();
+  drawMediaSheet(); renderAll();
+}
+function drawMediaSheet() {
+  const c = mcfg(), list = c.items[c.mode] || [];
+  document.querySelectorAll("[data-mcfg]").forEach(el => {
+    const k = el.dataset.mcfg;
+    if (el.tagName === "INPUT") el.value = c[k];
+    else el.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === c[k])));
+  });
+  $("#vMInt").textContent = c.interval + " s"; $("#vMDim").textContent = c.dim + "%";
+  $("#mIntervalOpt").style.display = c.mode === "slideshow" ? "" : "none";
+  $("#mItemsLbl").textContent = c.mode === "video" ? "Video" : c.mode === "slideshow" ? "Pictures" : "Image";
+  $("#mUrl").placeholder = c.mode === "video" ? "Paste a YouTube link or video URL" : "Paste an image URL";
+  $("#mPick").textContent = c.mode === "video" ? "Choose a video file…" : c.mode === "slideshow" ? "Add pictures…" : "Choose an image…";
+  const label = u => { const yt = ytParse(u); return yt ? "YouTube · " + (yt.id || yt.list) : u.startsWith("/media/") ? "Your file · " + u.slice(7) : u; };
+  $("#mItems").innerHTML = list.length ? list.map((u, i) => `<div class="m-item"><span title="${esc(u)}">${esc(label(u))}</span><button class="b" data-mrm="${i}" aria-label="Remove">✕</button></div>`).join("")
+    : `<span class="empty">Nothing added yet</span>`;
+}
+function gcMedia(dropped) { // delete copied files nothing references any more
+  const used = new Set(Object.values(mcfg().items).flat());
+  const gone = dropped.filter(u => u && u.startsWith("/media/") && !used.has(u));
+  if (gone.length) api().forget_media(gone);
+}
+function addMedia(urls) {
+  urls = urls.filter(okUrl); if (!urls.length) return false;
+  const c = mcfg(), cur = c.items[c.mode] || [];
+  const next = c.mode === "slideshow" ? [...cur, ...urls] : urls.slice(0, 1); // image/video hold one item (replace)
+  saveMcfg({ items: { ...c.items, [c.mode]: next } });
+  if (c.mode !== "slideshow") gcMedia(cur.filter(u => !next.includes(u)));
+  return true;
+}
+const toggleMedia = open => { document.body.classList.toggle("mopen", open); if (open) drawMediaSheet(); };
+
 Object.assign(TILES.waves, { blob: () => `<div class="cl cl-waves"><div class="cl-title">Waves</div><canvas class="waves" aria-hidden="true"></canvas><div class="cl-sub wlbl">${waveLabel()}</div></div>` });
 
 /* ── Waves (#3): layered sine waves whose height follows the live output level (api.levels, ~30 Hz) ──
@@ -652,6 +786,10 @@ function syncKids(a, b, anim) {
     if (na.nodeType !== nb.nodeType || na.nodeName !== nb.nodeName) { const c = nb.cloneNode(true); a.replaceChild(c, na); if (anim) appear(c); return; }
     if (na.nodeType !== 1) { if (na.nodeValue !== nb.nodeValue) na.nodeValue = nb.nodeValue; return; }
     if (na.tagName === "CANVAS") return; // its width/height are the live drawing buffer (waves)
+    if (na.hasAttribute("data-live")) { // media stage: rebuild only when its config changes
+      if (na.getAttribute("data-key") !== nb.getAttribute("data-key") || na.getAttribute("style") !== nb.getAttribute("style")) a.replaceChild(nb.cloneNode(true), na);
+      return;
+    }
     for (const { name } of [...na.attributes]) if (!nb.hasAttribute(name)) na.removeAttribute(name);
     for (const { name, value } of [...nb.attributes]) if (na.getAttribute(name) !== value) na.setAttribute(name, value);
     syncKids(na, nb, anim);
@@ -766,6 +904,7 @@ async function init() {
       if (ed.dataset.ed === "hide") setTp(id, { hidden: true });
       applyPrefs(); return rebuild();
     }
+    if (e.target.closest("[data-media-cfg]")) return toggleMedia(true);
     if (document.body.classList.contains("editing")) return;
     const el = e.target.closest("[data-act]");
     if (!el || !S || S.status !== "connected") return;
@@ -817,6 +956,24 @@ async function init() {
     document.querySelectorAll(".tile").forEach(el => el.draggable = on);
   };
   const toggleSheet = open => document.body.classList.toggle("open", open);
+  $("#closeMedia").onclick = () => toggleMedia(false);
+  $("#scrim").addEventListener("click", () => toggleMedia(false));
+  document.addEventListener("keydown", e => e.key === "Escape" && toggleMedia(false));
+  $("#mediaSheet").addEventListener("click", async e => {
+    const seg = e.target.closest("[data-mcfg] button");
+    if (seg) return saveMcfg({ [seg.parentElement.dataset.mcfg]: seg.dataset.v });
+    const rm = e.target.closest("[data-mrm]");
+    if (rm) { const c = mcfg(), list = [...(c.items[c.mode] || [])], [gone] = list.splice(+rm.dataset.mrm, 1); saveMcfg({ items: { ...c.items, [c.mode]: list } }); gcMedia([gone]); return; }
+    if (e.target.id === "mAddUrl") { if (addMedia([$("#mUrl").value.trim()])) $("#mUrl").value = ""; return; }
+    if (e.target.id === "mPick") { const c = mcfg(); const got = await api().pick_media(c.mode === "video" ? "video" : "image", c.mode === "slideshow"); if (got && got.length) addMedia(got); }
+  });
+  $("#mUrl").addEventListener("keydown", e => { if (e.key === "Enter") $("#mAddUrl").click(); });
+  let mT;
+  $("#mediaSheet").addEventListener("input", e => {
+    const k = e.target.dataset.mcfg; if (!k) return;
+    $(k === "dim" ? "#vMDim" : "#vMInt").textContent = e.target.value + (k === "dim" ? "%" : " s");
+    clearTimeout(mT); mT = setTimeout(() => saveMcfg({ [k]: +e.target.value }), 120);
+  });
   $("#setBtn").onclick = () => toggleSheet(true);
   $("#closeSheet").onclick = $("#scrim").onclick = () => toggleSheet(false);
   document.addEventListener("keydown", e => e.key === "Escape" && toggleSheet(false));

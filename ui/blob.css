@@ -219,3 +219,7 @@
 
 /* device hero (#4): per-bud state + beat pulse on a wrapping <g>, so the right path's mirror transform is untouched */
 .cl-buds .bud { transform-box: fill-box; transform-origin: center; }
+
+/* media tile (#5): the stage fills the cell; the cell's clip-path shapes it. Cog sits inside the shape, not a bbox corner. */
+[data-theme^=blob] .tile.media .m-stage { border-radius: 0; }
+[data-theme^=blob] .tile.media .m-cfg { right: auto; left: 50%; bottom: 16%; transform: translateX(-50%); }

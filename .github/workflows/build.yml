@@ -48,6 +48,7 @@ jobs:
           python buds.py
           python platform_bt.py
           python audio.py
+          python localserver.py
 
       - name: Build
         run: python -m PyInstaller --noconfirm budsdesk.spec
