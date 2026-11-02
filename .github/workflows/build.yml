@@ -102,9 +102,32 @@ jobs:
           [ "$code" = 124 ] || { echo "::error::BudsDesk exited early (code $code)"; exit 1; }
           if grep -qiE "GLIBCXX|version .* not found|Traceback" run.log; then echo "::error::bad lines in log"; exit 1; fi
 
+  # Same idea on Windows: v1.0.2 crashed at launch (bad window icon) and only a real start catches that.
+  smoke-windows:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: BudsDesk-windows
+      - name: Launch for 25 s
+        shell: pwsh
+        run: |
+          $t0 = Get-Date
+          Start-Process ./BudsDesk.exe
+          Start-Sleep 25
+          $procs = @(Get-Process BudsDesk -ErrorAction SilentlyContinue)
+          $win = $procs | Where-Object MainWindowTitle -eq "BudsDesk"
+          $crash = @(Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=$t0} -ErrorAction SilentlyContinue | Where-Object { $_.Message -match "BudsDesk" })
+          $crash | ForEach-Object { $_.Message }
+          $procs | Stop-Process -Force -ErrorAction SilentlyContinue
+          if (-not $procs) { Write-Error "BudsDesk exited early"; exit 1 }
+          if ($crash.Count) { Write-Error "crash logged"; exit 1 }
+          if (-not $win) { Write-Warning "no window titled BudsDesk found (headless runner?)" }
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build, smoke-linux]
+    needs: [build, smoke-linux, smoke-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -235,8 +235,9 @@ def main():
     window.events.closing += on_closing
     icon = make_tray(window, session, quit_app)
     webview.start(lambda: session.pick(sys.argv[1] if len(sys.argv) > 1 else None),
-                  gui="qt" if sys.platform == "linux" else None,  # Linux bundle ships Qt; skip the GTK probe
-                  icon=os.path.join(HERE, "ui", "icon.png"))  # window/taskbar icon on Linux (Windows/macOS use the exe/.app icon)
+                  **({"gui": "qt", "icon": os.path.join(HERE, "ui", "icon.png")} if sys.platform == "linux" else {}))
+    # Linux: the bundle ships Qt (skip the GTK probe) and Qt takes a PNG window icon. Never pass icon= elsewhere:
+    # on Windows pywebview hands it to System.Drawing.Icon, which only reads .ico and crashed v1.0.2 at launch.
 
 
 if __name__ == "__main__":
