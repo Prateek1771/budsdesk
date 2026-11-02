@@ -173,6 +173,7 @@ select option { background: var(--sheet); color: var(--fg); }
 
 /* dial gauge */
 .dialwrap { display: grid; grid-template-columns: clamp(90px, 34cqw, 170px) 1fr; gap: 16px; flex: 1; min-height: 0; margin-top: 8px; }
+.tile canvas.waves { flex: 1; width: 100%; min-height: 0; display: block; margin-top: 8px; --wave-accent: var(--t-accent); }
 .gauge { width: 100%; height: auto; align-self: center; touch-action: none; cursor: grab; outline: none; border-radius: 50%; }
 .gauge.drag, .cl-vol.drag { cursor: grabbing; }
 .gauge:focus-visible, .cl-vol:focus-visible { box-shadow: 0 0 0 2px var(--t-accent); }
@@ -328,6 +329,8 @@ const TILES = {
       <div class="lbl"><span>Find my buds</span><span class="dots">${dots("find", 3)}</span></div><div class="grow"></div>
       <div class="seg">${["left", "right", "both"].map(w => `<button class="b ${ringing === w ? "ringing" : ""}" data-act="ring" data-v="${w}">${w}</button>`).join("")}
       <button class="b red" aria-pressed="true" data-act="ring" data-v="off">Stop</button></div>` },
+  waves: { name: "Waves", w: 2, h: 1, c: "dark", s: "soft", render: () => `
+      <div class="lbl"><span>Waves</span><span class="wlbl">${waveLabel()}</span></div><canvas class="waves" aria-hidden="true"></canvas>` },
   info: { name: "Device info", w: 1, h: 1, c: "dark", s: "soft", render: () => `
       <div class="lbl"><span>Device</span></div><div class="grow"></div>
       <div class="big" style="font-size:clamp(16px, 15cqw, 34px)">${S.firmware || "--"}</div>
@@ -449,6 +452,80 @@ Object.assign(TILES.gestures, { blob: () => `<div class="cl" style="justify-cont
 Object.assign(TILES.find, { blob: () => `<div class="cl"><div class="cl-title">Find my buds</div><div class="cl-find">${[["left", "L"], ["right", "R"], ["both", "L+R"]].map(([v, l]) =>
     `<button class="rip ${ringing === v ? "ringing" : ""}" data-act="ring" data-v="${v}">${l}</button>`).join("")}<button class="rip stop" data-act="ring" data-v="off">Stop</button></div></div>` });
 Object.assign(TILES.info, { blob: () => `<div class="cl"><div class="cl-sub">firmware</div><div class="cl-big">${S.firmware || "–"}</div></div>` });
+Object.assign(TILES.waves, { blob: () => `<div class="cl cl-waves"><div class="cl-title">Waves</div><canvas class="waves" aria-hidden="true"></canvas><div class="cl-sub wlbl">${waveLabel()}</div></div>` });
+
+/* ── Waves (#3): layered sine waves whose height follows the live output level (api.levels, ~30 Hz) ──
+   Curve i:  y = A_i · sin(f_i·X − v_i·t) · att(X),  X ∈ [−2, 2],  att(X) = (K / (K + X⁴))^K  (pinned ends, belly mid)
+   — the approach SiriWave describes (MIT, kopiro/siriwave); written from the formula, not copied. */
+let WAVE_ON = false;
+const waveLabel = () => !META.levels ? "Idle" : WAVE_ON ? "Now listening" : "Quiet";
+const Waves = (() => {
+  //          freq  speed  amp   alpha  channel (0 L, 1 R, 2 mean)
+  const CURVES = [[1.5, 1.1, 1, 1, 2], [2.2, -1.4, .72, .55, 0], [2.8, 1.8, .55, .4, 1], [1.2, -.7, .38, .28, 2]];
+  const att = X => Math.pow(4 / (4 + X ** 4), 4);
+  const smooth = new WeakMap(), visible = new Set();
+  let LV = [0, 0], inflight = false, lastPoll = -1e9, raf = 0, io = null;
+  function poll(t) {
+    if (!META.levels || inflight || t - lastPoll < 33) return;
+    lastPoll = t; inflight = true;
+    api().levels().then(v => { LV = v || [0, 0]; }).catch(() => {}).finally(() => { inflight = false; });
+  }
+  // draws one frame into the tile's canvas; returns the largest amplitude drawn (px), for tests
+  function draw(tile, t, lv) {
+    const cv = tile.querySelector("canvas.waves"); if (!cv) return 0;
+    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight; if (!w || !h) return 0;
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    const ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+    const sm = smooth.get(cv) || { l: 0, r: 0 };
+    for (const [k, v] of [["l", lv[0]], ["r", lv[1]]]) sm[k] += (v - sm[k]) * (v > sm[k] ? .5 : .08); // fast attack, slow release
+    smooth.set(cv, sm);
+    const on = Math.max(sm.l, sm.r) > .02, cs = getComputedStyle(cv), ink = cs.color, accent = cs.getPropertyValue("--wave-accent").trim() || ink;
+    const cells = isCells(), mid = h / 2, half = h / 2 - 3;
+    let maxA = 0;
+    CURVES.forEach(([f, v, a, alpha, ch], i) => {
+      const lvl = ch === 0 ? sm.l : ch === 1 ? sm.r : (sm.l + sm.r) / 2;
+      const A = (on ? Math.min(1, lvl * 1.15) * .92 + .06 : .07 + .025 * Math.sin(t * .6 + i)) * a * half; // idle: calm ripple
+      maxA = Math.max(maxA, A);
+      const y = x => { const X = (x / w) * 4 - 2; return mid + A * att(X) * Math.sin(f * X * 2.2 - t * v * (on ? 2.4 : .8) + i * 1.7); };
+      ctx.globalAlpha = alpha; ctx.fillStyle = ctx.strokeStyle = i === 0 ? accent : ink;
+      if (cells) { // soft filled lens between the curve and its mirror
+        ctx.beginPath(); ctx.moveTo(0, mid);
+        for (let x = 0; x <= w; x += 3) ctx.lineTo(x, y(x));
+        for (let x = w; x >= 0; x -= 3) ctx.lineTo(x, 2 * mid - y(x));
+        ctx.closePath(); ctx.globalAlpha = alpha * .55; ctx.fill();
+      } else { // dot-matrix line, like the app's dot icons
+        const g = Math.max(5, Math.round(h / 14)), r = i === 0 ? g * .32 : g * .24;
+        for (let x = g / 2; x < w; x += g) { ctx.beginPath(); ctx.arc(x, Math.round(y(x) / (g / 2)) * (g / 2), r, 0, Math.PI * 2); ctx.fill(); }
+      }
+    });
+    ctx.globalAlpha = 1;
+    return maxA;
+  }
+  function loop(now) {
+    raf = 0;
+    if (document.hidden || !visible.size) return;
+    poll(now);
+    const t = now / 1000;
+    let any = false;
+    visible.forEach(tile => { if (tile.isConnected) { draw(tile, t, LV); any = true; } });
+    const on = Math.max(LV[0], LV[1]) > .02;
+    if (on !== WAVE_ON) { WAVE_ON = on; document.querySelectorAll(".wlbl").forEach(e => e.textContent = waveLabel()); }
+    if (any) raf = requestAnimationFrame(loop);
+  }
+  function kick() {
+    if (reducedMotion) { visible.forEach(tile => draw(tile, 0, [0, 0])); return; } // one calm static frame
+    if (!raf && !document.hidden && visible.size) raf = requestAnimationFrame(loop);
+  }
+  function attach() { // after every build(): tiles are new elements
+    if (io) io.disconnect();
+    visible.clear();
+    io = new IntersectionObserver(es => { es.forEach(e => e.isIntersecting ? visible.add(e.target) : visible.delete(e.target)); kick(); });
+    document.querySelectorAll(".tile.waves").forEach(el => io.observe(el));
+  }
+  document.addEventListener("visibilitychange", kick);
+  return { attach, frame: draw };
+})();
+window.Waves = Waves;
 
 /* ── prefs ── */
 const DEFAULT_PREFS = () => ({ order: Object.keys(TILES), tiles: {}, theme: "light", btnSize: "m", btnShape: "pill", radius: 30, gap: 12, cell: 150 });
@@ -506,6 +583,7 @@ function build(animateCells) {
   if (firstBuild && !reducedMotion) { g.classList.add("enter"); setTimeout(() => g.classList.remove("enter"), 1600); }
   firstBuild = false;
   cellsLayout(animateCells);
+  Waves.attach();
   if (S) renderAll();
 }
 // Re-rendering between pointerdown and pointerup swaps the DOM under the cursor and eats the click,
@@ -528,6 +606,7 @@ function syncKids(a, b, anim) {
     if (!na) { const c = a.appendChild(nb.cloneNode(true)); if (anim) appear(c); return; }
     if (na.nodeType !== nb.nodeType || na.nodeName !== nb.nodeName) { const c = nb.cloneNode(true); a.replaceChild(c, na); if (anim) appear(c); return; }
     if (na.nodeType !== 1) { if (na.nodeValue !== nb.nodeValue) na.nodeValue = nb.nodeValue; return; }
+    if (na.tagName === "CANVAS") return; // its width/height are the live drawing buffer (waves)
     for (const { name } of [...na.attributes]) if (!nb.hasAttribute(name)) na.removeAttribute(name);
     for (const { name, value } of [...nb.attributes]) if (na.getAttribute(name) !== value) na.setAttribute(name, value);
     syncKids(na, nb, anim);
@@ -623,7 +702,10 @@ async function init() {
   if (META.audio) api().volume().then(v => v && volTick(v.v, v.m));
   P = { ...DEFAULT_PREFS(), ...(P || {}) };
   if (!["light", "dark", "blob", "blobc"].includes(P.theme)) P.theme = "dark"; // e.g. the removed "retro" theme
-  P.order = [...P.order.filter(id => TILES[id]), ...Object.keys(TILES).filter(id => !P.order.includes(id))];
+  // tiles added in an update land right after the hero (where people look), not at the bottom of an old layout
+  const fresh = Object.keys(TILES).filter(id => !P.order.includes(id));
+  P.order = P.order.filter(id => TILES[id]);
+  P.order.splice(Math.max(0, P.order.indexOf("hero") + 1), 0, ...fresh);
   applyPrefs(); build();
   loadDevices();
   $("#devPick").onchange = async e => { if (e.target.value === "?") return loadDevices(); render(await api().select(e.target.value)); loadDevices(); };

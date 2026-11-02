@@ -93,8 +93,8 @@ class Session:
 
 
 class Api:
-    def __init__(self, session: Session, volume: "audio.Volume"):
-        self._s, self._vol = session, volume
+    def __init__(self, session: Session, volume: "audio.Volume", meter: "audio.Meter"):
+        self._s, self._vol, self._meter = session, volume, meter
 
     def _b(self):
         return self._s.b
@@ -108,7 +108,8 @@ class Api:
 
     def meta(self):
         return {"types": buds.GESTURE_TYPES, "actions": buds.ACTIONS, "generic_actions": buds.models.GENERIC_ACTIONS,
-                "platform": sys.platform, "audio": self._vol.available}
+                "platform": sys.platform, "audio": self._vol.available,
+                "levels": self._meter.available}
 
     # system volume (#2): the Smart Dial gauge mirrors it, dragging the gauge sets it
     def volume(self):
@@ -117,6 +118,11 @@ class Api:
 
     def set_volume(self, level):
         self._vol.set(level)
+
+    # output level (#3 waves): latest (left, right) peak 0..1, sampled ~30 Hz off-thread; None = unavailable
+    def levels(self):
+        lv = self._meter.levels()
+        return [round(lv[0], 3), round(lv[1], 3)] if lv else None
 
     def state(self):
         return self._s.state()
@@ -221,8 +227,8 @@ def main():
 
     session = Session(on_change)
     session.scan()
-    volume = audio.Volume()
-    window = webview.create_window(APP, os.path.join(HERE, "ui", "index.html"), js_api=Api(session, volume),
+    volume, meter = audio.Volume(), audio.Meter().start()
+    window = webview.create_window(APP, os.path.join(HERE, "ui", "index.html"), js_api=Api(session, volume, meter),
                                    width=1060, height=860, min_size=(420, 560), background_color="#e7e8ec")
 
     def quit_app():

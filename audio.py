@@ -148,7 +148,116 @@ class Volume:
         threading.Thread(target=loop, daemon=True, name="volume-watch").start()
 
 
+# ── output level meter (issue #3: waves; #4 reuses it for the beat pulse) ──
+def clamp01(x):
+    return 0.0 if x != x or x < 0 else 1.0 if x > 1 else float(x)  # NaN-safe
+
+
+class _WinMeter:
+    """IAudioMeterInformation on the default render endpoint. pycaw only declares GetPeakValue, so the full
+    vtable (GetPeakValue, GetMeteringChannelCount, GetChannelsPeakValues, QueryHardwareSupport) is declared here."""
+
+    def __init__(self):
+        import ctypes
+        from comtypes import COMMETHOD, GUID, HRESULT, IUnknown
+        from pycaw.pycaw import AudioUtilities  # noqa: F401
+
+        class IMeter(IUnknown):
+            _iid_ = GUID("{C02216F6-8C67-4B5B-9D00-D008E73E0064}")
+            _methods_ = (
+                COMMETHOD([], HRESULT, "GetPeakValue", (["out"], ctypes.POINTER(ctypes.c_float), "peak")),
+                COMMETHOD([], HRESULT, "GetMeteringChannelCount", (["out"], ctypes.POINTER(ctypes.c_uint), "count")),
+                COMMETHOD([], HRESULT, "GetChannelsPeakValues", (["in"], ctypes.c_uint, "count"),
+                          (["in"], ctypes.POINTER(ctypes.c_float), "peaks")),
+                COMMETHOD([], HRESULT, "QueryHardwareSupport", (["out"], ctypes.POINTER(ctypes.c_uint), "mask")),
+            )
+        self._IMeter, self._ct, self._m, self._buf = IMeter, ctypes, None, None
+
+    def open(self):
+        import comtypes
+        from comtypes import CLSCTX_ALL
+        from pycaw.pycaw import AudioUtilities
+        dev = AudioUtilities.GetSpeakers()._dev
+        self._m = dev.Activate(self._IMeter._iid_, CLSCTX_ALL, None).QueryInterface(self._IMeter)
+        n = self._m.GetMeteringChannelCount()
+        self._n, self._buf = n, (self._ct.c_float * max(1, n))()
+        return comtypes
+
+    def read(self):
+        if self._n >= 2:
+            self._m.GetChannelsPeakValues(self._n, self._buf)
+            return clamp01(self._buf[0]), clamp01(self._buf[1])
+        p = clamp01(self._m.GetPeakValue())
+        return p, p
+
+
+class _LinuxMeter:
+    """Peak of the default sink's monitor source via libpulse (works on PipeWire through pipewire-pulse). Mono."""
+
+    def __init__(self):
+        import pulsectl  # noqa: F401  (ImportError -> unavailable)
+        self._pulse = self._src = None
+
+    def open(self):
+        import pulsectl
+        if self._pulse:
+            self._pulse.close()
+        self._pulse = pulsectl.Pulse("budsdesk-meter")
+        self._src = self._pulse.sink_info(self._pulse.server_info().default_sink_name).monitor_source_name
+
+    def read(self):
+        p = clamp01(self._pulse.get_peak_sample(self._src, 0.03))  # blocks ~30 ms: also paces the loop
+        return p, p
+
+
+class Meter:
+    """Latest output peak per channel, sampled on a daemon thread at ~30 Hz. levels() never does I/O."""
+
+    def __init__(self):
+        cls = {"win32": _WinMeter, "linux": _LinuxMeter}.get(sys.platform)  # macOS: needs a Core Audio tap (#3 follow-up)
+        try:
+            self._b = cls() if cls else None
+        except Exception:
+            self._b = None
+        self._lv, self._ok = None, False
+
+    @property
+    def available(self):
+        return self._b is not None and self._ok
+
+    def levels(self):
+        return self._lv
+
+    def start(self):
+        if not self._b:
+            return self
+        ready = threading.Event()
+
+        def loop():
+            n, opened = 0, False
+            if sys.platform == "win32":
+                import comtypes
+                comtypes.CoInitialize()
+            while True:
+                try:
+                    if not opened or n % 90 == 0:  # (re)acquire the default output every ~3 s
+                        self._b.open()
+                        opened = True
+                    self._lv, self._ok = self._b.read(), True
+                except Exception:
+                    self._lv, opened = None, False
+                ready.set()
+                n += 1
+                if sys.platform == "win32":
+                    threading.Event().wait(1 / 30)
+
+        threading.Thread(target=loop, daemon=True, name="level-meter").start()
+        ready.wait(1.0)
+        return self
+
+
 if __name__ == "__main__":
+    assert clamp01(-1) == 0 and clamp01(2) == 1 and clamp01(float("nan")) == 0 and clamp01(0.25) == 0.25
     assert parse_wpctl("Volume: 0.42\n") == (0.42, False)
     assert parse_wpctl("Volume: 0.35 [MUTED]\n") == (0.35, True)
     assert parse_wpctl("Volume: 1.50\n") == (1.0, False)  # over-amplified sinks clamp to 100 %
@@ -160,3 +269,5 @@ if __name__ == "__main__":
     assert parse_osascript("missing value, missing value") is None
     v = Volume()
     print("ok; live volume:", v.get() if v.get() is not None else "unavailable on this machine")
+    m = Meter().start()
+    print("meter:", f"available, levels {m.levels()}" if m.available else "unavailable on this machine")
