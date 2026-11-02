@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CMF Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Doto:wght@700;900&family=Space+Grotesk:wght@400;500;600&family=Space+Mono:wght@400;700&family=Unbounded:wght@500;700;900&family=IBM+Plex+Mono:wght@400;500;600&family=Inter+Tight:wght@500;600;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="blob.css" rel="stylesheet">
+<script src="vendor/d3-voronoi.min.js"></script>
+<script src="blob.js"></script>
+<style>
+/* ── themes: page bg + four tile palettes (light / dark / accent / muted) ── */
+:root, [data-theme=light] {
+  --page: #e7e8ec; --page-dot: #cfd1d6; --fg: #0d0d0e; --mute: #6b6d73;
+  --t-light: #ffffff; --t-light-fg: #0d0d0e;
+  --t-dark: #0e0e0f; --t-dark-fg: #f5f5f5;
+  --t-accent: #e8131c; --t-accent-fg: #ffffff;
+  --t-muted: #c9ccd2; --t-muted-fg: #0d0d0e;
+  --sheet: #ffffff; --shadow: 0 1px 0 rgba(0,0,0,.04), 0 10px 30px -12px rgba(20,20,30,.18);
+  color-scheme: light;
+}
+[data-theme=dark] {
+  --page: #000; --page-dot: #1f1f22; --fg: #f2f2f2; --mute: #8d8d93;
+  --t-light: #f3f3f3; --t-light-fg: #0d0d0e;
+  --t-dark: #121213; --t-dark-fg: #f2f2f2;
+  --t-accent: #e8131c; --t-accent-fg: #fff;
+  --t-muted: #232326; --t-muted-fg: #f2f2f2;
+  --sheet: #141416; --shadow: none; color-scheme: dark;
+}
+:root {
+  --cell: 150px; --gap: 12px; --radius: 30px;
+  --btn-h: 40px; --btn-r: 999px; --btn-fs: 12px; --btn-px: 16px;
+  --dot: "Doto", "Space Mono", monospace; --sans: "Space Grotesk", "Segoe UI Variable", system-ui, sans-serif; --mono: "Space Mono", ui-monospace, monospace;
+  --ease: cubic-bezier(.25,.1,.25,1);
+  /* motion tokens: Nothing = calm precision (ease-out, no overshoot, short). Cells overrides. */
+  --ease-enter: cubic-bezier(.2,0,0,1); --ease-spring: cubic-bezier(.2,0,0,1); --vt: 320ms;
+}
+::view-transition-group(*) { animation-duration: var(--vt); animation-timing-function: var(--ease-enter); }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--vt); }
+.grid.enter .tile { animation: tileIn .5s var(--ease-enter) both; animation-delay: calc(var(--i) * 32ms); }
+@keyframes tileIn { from { opacity: 0; transform: translateY(10px); } }
+* { box-sizing: border-box; margin: 0; }
+html, body { background: var(--page); color: var(--fg); font: 14px/1.35 var(--sans); -webkit-font-smoothing: antialiased; min-height: 100%; }
+body { padding: 18px 18px 40px; user-select: none; transition: background .3s var(--ease);
+  background-image: radial-gradient(var(--page-dot) 1px, transparent 1px); background-size: 16px 16px; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--t-accent); outline-offset: 2px; }
+
+/* ── header ── */
+header { display: flex; align-items: center; gap: 10px; max-width: 1280px; margin: 0 auto 16px; }
+.brand { font: 900 22px/1 var(--dot); letter-spacing: .04em; text-transform: uppercase; margin-right: auto; }
+.brand small { display: block; font: 10px var(--mono); color: var(--mute); letter-spacing: .12em; margin-top: 6px; }
+.hbtn { all: unset; cursor: pointer; height: 38px; padding: 0 16px; border-radius: 999px; display: inline-flex; align-items: center; gap: 8px;
+  font: 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; background: var(--t-light); color: var(--t-light-fg); box-shadow: var(--shadow); }
+.hbtn.on { background: var(--t-accent); color: var(--t-accent-fg); }
+.hbtn i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .35; }
+.hbtn[data-s=connected] i { background: #27c46b; opacity: 1; box-shadow: 0 0 8px #27c46b; }
+.hbtn[data-s=connecting] i { opacity: 1; animation: blink 1s infinite; }
+@keyframes blink { 50% { opacity: .15 } }
+.stamp { position: absolute; top: 14px; right: 16px; z-index: 4; pointer-events: none; font: 700 10px var(--mono); letter-spacing: .12em;
+  padding: 4px 9px; border-radius: 999px; background: var(--tf); color: var(--bg); animation: stamp 1.4s var(--ease) forwards; }
+@keyframes stamp { 0% { opacity: 0; transform: translateY(4px); } 14%, 72% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+.ringing { animation: ringpulse 1s ease-out infinite; }
+@keyframes ringpulse { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--t-accent) 70%, transparent); } to { box-shadow: 0 0 0 12px transparent; } }
+.segbar span { transition: background .4s var(--ease); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+
+.notice { max-width: 1280px; margin: 0 auto 12px; padding: 14px 18px; border-radius: 18px; background: var(--t-accent); color: var(--t-accent-fg); font-size: 13px; display: none; }
+.notice b { font: 700 11px var(--mono); letter-spacing: .1em; margin-right: 8px; }
+
+/* ── bento grid ── */
+.grid { max-width: 1280px; margin: 0 auto; display: grid; gap: var(--gap);
+  grid-template-columns: repeat(auto-fill, minmax(var(--cell), 1fr)); grid-auto-rows: var(--cell); grid-auto-flow: dense; }
+.tile { --bg: var(--t-light); --tf: var(--t-light-fg);
+  position: relative; background: var(--bg); color: var(--tf); border-radius: var(--radius); padding: 18px;
+  container-type: size; overflow: hidden; box-shadow: var(--shadow); display: flex; flex-direction: column;
+  transition: border-radius .3s var(--ease), background .3s var(--ease), color .3s var(--ease), opacity .2s; }
+.tile.c-dark { --bg: var(--t-dark); --tf: var(--t-dark-fg); }
+[data-theme=dark] .tile.c-dark, [data-theme=dark] .tile.c-muted { box-shadow: inset 0 0 0 1px rgba(255,255,255,.07); }
+.tile.c-accent { --bg: var(--t-accent); --tf: var(--t-accent-fg); }
+.tile.c-muted { --bg: var(--t-muted); --tf: var(--t-muted-fg); }
+.tile.w2 { grid-column: span 2; } .tile.h2 { grid-row: span 2; }
+.tile.s-round { border-radius: 999px; padding: 18px 26px; }
+.tile.s-round.h2:not(.w2), .tile.s-round.w2.h2 { border-radius: calc(var(--cell)); }
+.tile.s-sharp { border-radius: 8px; }
+.tile.s-round.w1.h1, .tile.s-round:not(.w2):not(.h2) { padding: 14px; align-items: center; justify-content: center; text-align: center; }
+.lbl { font: 10.5px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; opacity: .6; display: flex; justify-content: space-between; gap: 8px; }
+.big { font: 900 44px/1 var(--dot); letter-spacing: -.01em; }
+.big small { font: 400 13px var(--mono); opacity: .55; margin-left: 2px; letter-spacing: 0; }
+.title { font: 500 22px/1.1 var(--sans); letter-spacing: -.01em; }
+.grow { flex: 1; }
+.dots svg { display: block; }
+
+/* buttons: global size + shape come from --btn-* */
+.b { all: unset; cursor: pointer; box-sizing: border-box; height: var(--btn-h); padding: 0 var(--btn-px); border-radius: var(--btn-r);
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; text-align: center; white-space: nowrap;
+  font: 500 var(--btn-fs) var(--mono); letter-spacing: .06em; text-transform: uppercase;
+  background: color-mix(in srgb, var(--tf) 8%, transparent); transition: background .2s var(--ease), color .2s var(--ease), transform .12s var(--ease); }
+.b:active { transform: scale(.96); }
+.b:hover { background: color-mix(in srgb, var(--tf) 16%, transparent); }
+.b[aria-pressed=true] { background: var(--tf); color: var(--bg); }
+.b.red[aria-pressed=true] { background: var(--t-accent); color: var(--t-accent-fg); }
+.c-accent .b.red[aria-pressed=true] { background: var(--tf); color: var(--bg); }
+.row-b { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
+.seg .b { padding: 0 6px; }
+
+/* quick toggle tiles */
+.quick { cursor: pointer; justify-content: space-between; }
+.quick .qname { font: 500 15px/1.15 var(--sans); }
+.quick .qstate { font: 10.5px var(--mono); letter-spacing: .1em; text-transform: uppercase; opacity: .6; margin-top: 2px; }
+:root:not([data-theme^=blob]) .quick.active { --bg: var(--t-accent) !important; --tf: var(--t-accent-fg) !important; }
+.s-round.quick { gap: 8px; justify-content: center; }
+
+/* battery */
+.bat { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: auto; }
+.bat .n { font: 900 38px/1 var(--dot); display: flex; align-items: baseline; gap: 2px; }
+.bat .n small { font: 400 12px var(--mono); opacity: .5; }
+.segbar { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; margin-top: 10px; height: 10px; }
+.segbar span { background: color-mix(in srgb, var(--tf) 14%, transparent); }
+.segbar span.on { background: var(--tf); }
+.segbar.low span.on { background: var(--t-accent); }
+.c-accent .segbar.low span.on { background: var(--tf); }
+.bat .meta { font: 10px var(--mono); letter-spacing: .1em; opacity: .6; margin-top: 8px; text-transform: uppercase; display: flex; gap: 6px; align-items: center; }
+.ear { width: 6px; height: 6px; border-radius: 50%; border: 1px solid currentColor; }
+.ear.on { background: #27c46b; border-color: #27c46b; }
+@container (max-width: 260px) { .bat { grid-template-columns: 1fr 1fr; gap: 8px; } .bat > :nth-child(3) { display: none; } .bat .n { font-size: 28px; } }
+
+/* hero */
+.hero .art { flex: 1; display: grid; place-items: center; min-height: 0; }
+.hero .art svg { width: min(78%, 240px); height: auto; max-height: 100%; }
+.hero .foot { display: flex; justify-content: space-between; align-items: end; gap: 8px; }
+@container (max-height: 200px) { .hero .art { display: none; } .hero .foot { margin-top: auto; } }
+
+/* eq: vertical pill sliders */
+.eq { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; flex: 1; min-height: 0; margin-top: 12px; }
+.vs { position: relative; border-radius: var(--btn-r); background: color-mix(in srgb, var(--tf) 10%, transparent); overflow: hidden; cursor: ns-resize; touch-action: none; min-height: 60px; }
+.vs .fill { position: absolute; left: 0; right: 0; bottom: 0; background: var(--t-accent); transition: height .12s; }
+.c-accent .vs .fill { background: var(--tf); }
+.vs .mid { position: absolute; left: 18%; right: 18%; top: 50%; height: 1px; background: currentColor; opacity: .25; }
+.vs .v { position: absolute; top: 12px; left: 0; right: 0; text-align: center; font: 900 22px var(--dot); mix-blend-mode: difference; color: #fff; }
+.vs .k { position: absolute; bottom: 12px; left: 0; right: 0; text-align: center; font: 10px var(--mono); letter-spacing: .1em; text-transform: uppercase; mix-blend-mode: difference; color: #fff; }
+.eq-off { flex: 1; display: grid; place-items: center; text-align: center; }
+.chips { margin-top: 12px; max-height: 100%; overflow: auto; scrollbar-width: none; }
+.h1 .chips { flex-wrap: nowrap; margin-top: auto; }
+
+/* bass blocks */
+.blocks { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; height: 28px; margin-top: auto; }
+.blocks button { all: unset; cursor: pointer; background: color-mix(in srgb, var(--tf) 14%, transparent); border-radius: calc(var(--btn-r) / 8); }
+.blocks button.on { background: var(--tf); }
+
+/* gesture rows */
+.rows { overflow: auto; margin-top: 10px; flex: 1; min-height: 0; scrollbar-width: thin; }
+.r { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid color-mix(in srgb, var(--tf) 12%, transparent); }
+.r:first-child { border-top: 0; }
+.r .t { font-size: 13px; font-weight: 500; }
+.r .t small { display: block; font: 10px var(--mono); opacity: .55; letter-spacing: .06em; text-transform: uppercase; font-weight: 400; }
+select { appearance: none; background: color-mix(in srgb, var(--tf) 8%, transparent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' fill='none' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 12px center;
+  color: inherit; border: 0; border-radius: var(--btn-r); height: calc(var(--btn-h) - 4px); padding: 0 30px 0 14px; font: 500 12px var(--sans); cursor: pointer; max-width: 58%; }
+select option { background: var(--sheet); color: var(--fg); }
+
+/* dial gauge */
+.dialwrap { display: grid; grid-template-columns: clamp(90px, 34cqw, 170px) 1fr; gap: 16px; flex: 1; min-height: 0; margin-top: 8px; }
+.gauge { width: 100%; height: auto; align-self: center; }
+@container (max-width: 270px) { .dialwrap { grid-template-columns: 1fr; } .gauge { display: none; } }
+
+/* ── edit mode ── */
+.editing .tile { cursor: grab; }
+.editing .tile > :not(.ed) { pointer-events: none; }
+.editing .tile .body > * { opacity: .12; filter: blur(1px); transition: opacity .2s var(--ease); }
+.editing .tile::after { content: ""; position: absolute; inset: 0; border-radius: inherit; border: 1.5px dashed color-mix(in srgb, var(--tf) 40%, transparent); pointer-events: none; }
+.tile.dragging { opacity: .35; }
+.tile.over { outline: 2px solid var(--t-accent); outline-offset: 3px; }
+.ed { display: none; position: absolute; inset: 0; z-index: 3; gap: 4px; justify-content: center; align-content: center; flex-wrap: wrap; padding: 30px 12px 12px; }
+.editing .ed { display: flex; }
+.ed button { all: unset; cursor: pointer; height: 28px; min-width: 28px; padding: 0 9px; border-radius: 999px; display: grid; place-items: center;
+  font: 10px var(--mono); letter-spacing: .06em; text-transform: uppercase; background: var(--tf); color: var(--bg); }
+.ed button:hover { background: var(--t-accent); color: #fff; }
+.ed .nm { flex-basis: 100%; text-align: center; margin-bottom: 6px; font: 500 15px var(--sans); }
+
+/* ── settings sheet ── */
+.scrim { position: fixed; inset: 0; background: rgba(0,0,0,.35); opacity: 0; pointer-events: none; transition: opacity .25s var(--ease); z-index: 9; }
+.sheet { position: fixed; top: 10px; right: 10px; bottom: 10px; width: min(360px, calc(100vw - 20px)); background: var(--sheet); color: var(--fg); border-radius: 26px; padding: 22px;
+  z-index: 10; overflow: auto; opacity: 0; pointer-events: none; transform: translateX(12px); transition: opacity .25s var(--ease), transform .25s var(--ease); box-shadow: 0 20px 60px -20px rgba(0,0,0,.4); --tf: var(--fg); --bg: var(--sheet); }
+.open .scrim { opacity: 1; pointer-events: auto; } .open .sheet { opacity: 1; pointer-events: auto; transform: none; }
+.sheet h3 { font: 900 20px var(--dot); text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+.opt { margin-bottom: 18px; }
+.opt .lbl { margin-bottom: 8px; }
+.opt input[type=range] { width: 100%; accent-color: var(--t-accent); }
+.hidden-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.empty { font-size: 12px; opacity: .55; }
+.sheet .seg { background: color-mix(in srgb, var(--tf) 7%, transparent); border-radius: 999px; padding: 4px; gap: 2px; }
+.sheet .seg .b { height: 34px; padding: 0 6px; border-radius: 999px; background: transparent; font-size: 11px; transform: none;
+  transition: background .2s var(--ease), color .2s var(--ease); }
+.sheet .seg .b:hover { background: color-mix(in srgb, var(--tf) 8%, transparent); }
+.sheet .seg .b[aria-pressed=true] { background: var(--tf); color: var(--bg); }
+</style>
+</head>
+<body class="">
+<header>
+  <div class="brand"><span id="brandName">BudsDesk</span><small id="meta">[SEARCHING]</small></div>
+  <select class="hbtn" id="devPick" aria-label="Device" hidden></select>
+  <div class="hbtn" id="status" data-s="disconnected"><i></i><span>offline</span></div>
+  <button class="hbtn" id="editBtn" aria-pressed="false">Edit</button>
+  <button class="hbtn" id="setBtn" aria-label="Layout settings">Layout</button>
+</header>
+<div class="notice" id="notice"><b>[BUSY]</b>The buds talk to one controller at a time, so close Nothing X or turn off your phone's Bluetooth. Retrying…</div>
+<div class="notice" id="noDev"><b>[NO DEVICE]</b>No paired Nothing or CMF audio device found. Pair it in your system Bluetooth settings, then pick it above.</div>
+<main class="grid" id="grid"></main>
+
+<div class="scrim" id="scrim"></div>
+<aside class="sheet" id="sheet" aria-label="Layout settings">
+  <h3>Layout <button class="b" id="closeSheet">Done</button></h3>
+  <div class="opt"><div class="lbl">Theme</div><div class="seg" data-pref="theme">
+    <button class="b" data-v="light">Light</button><button class="b" data-v="dark">Dark</button><button class="b" data-v="blob">Cells B/W</button><button class="b" data-v="blobc">Cells color</button></div></div>
+  <div class="opt"><div class="lbl">Button size</div><div class="seg" data-pref="btnSize">
+    <button class="b" data-v="s">S</button><button class="b" data-v="m">M</button><button class="b" data-v="l">L</button><button class="b" data-v="xl">XL</button></div></div>
+  <div class="opt"><div class="lbl">Button shape</div><div class="seg" data-pref="btnShape">
+    <button class="b" data-v="pill">Pill</button><button class="b" data-v="soft">Soft</button><button class="b" data-v="square">Square</button></div></div>
+  <div class="opt"><div class="lbl">Tile corners <span id="vRadius"></span></div><input type="range" min="4" max="48" data-pref="radius"></div>
+  <div class="opt"><div class="lbl">Gap <span id="vGap"></span></div><input type="range" min="4" max="28" data-pref="gap"></div>
+  <div class="opt"><div class="lbl">Tile size <span id="vCell"></span></div><input type="range" min="110" max="220" step="5" data-pref="cell"></div>
+  <div class="opt"><div class="lbl">Hidden tiles</div><div class="hidden-list" id="hiddenList"></div></div>
+  <div class="opt"><button class="b red" aria-pressed="true" id="resetBtn" style="width:100%">Reset layout</button></div>
+  <p class="empty">In Edit mode, drag a tile to move it. Use its buttons to change size, shape and color, or to hide it.</p>
+</aside>
+
+<script>
+const $ = s => document.querySelector(s);
+const api = () => window.pywebview.api;
+let S = null, META = null, P = null, gTab = 2;
+
+/* ── dot-matrix icons ── */
+const ICONS = {
+  buds: ["..####.....####..", ".######...######.", "########.########", "########.########", ".#######.#######.", "..#####...#####..", "...###.....###...", "...###.....###...", "...###.....###...", "...###.....###...", "....#.......#...."],
+  anc: ["...#...", ".#.#.#.", "##.#.##", "##.#.##", "##.#.##", ".#.#.#.", "...#..."],
+  trans: [".###.", "#...#", "#.#.#", "#..#.", ".#...", ".#...", "#...."],
+  lag: ["...##", "..##.", ".##..", "#####", "..##.", ".##..", "##..."],
+  inear: [".###.", "#...#", "#.#.#", "#...#", ".###."],
+  bass: ["....#", "..#.#", "..#.#", "#.#.#", "#.#.#"],
+  find: [".###..", "#...#.", "#...#.", "#...#.", ".###..", "....#.", ".....#"],
+  off: ["#...#", ".#.#.", "..#..", ".#.#.", "#...#"],
+};
+function dots(name, px = 6) {
+  const p = ICONS[name], w = p[0].length, h = p.length;
+  let c = "";
+  p.forEach((row, y) => [...row].forEach((ch, x) => { if (ch === "#") c += `<circle cx="${x + .5}" cy="${y + .5}" r=".4"/>`; }));
+  return `<svg viewBox="0 0 ${w} ${h}" width="${w * px}" height="${h * px}" fill="currentColor" aria-hidden="true">${c}</svg>`;
+}
+
+/* ── tiles: id -> defaults + render(state) ── */
+/* model features (from models.py via state.model) decide which tiles and options exist */
+const F = () => (S && S.model ? S.model.features : {});
+const ancLv = () => F().anc_levels || [];
+const isAnc = m => ancLv().includes(m);
+const customOn = () => F().custom_eq && S.listening === F().custom_index;
+const BATS = () => F().unit === "stereo" ? [["unit", "Battery"]] : [["left", "Left"], ["right", "Right"], ["case", "Case"]];
+const modelName = () => (S && S.model && S.model.base !== "generic" ? S.model.name : S && S.status === "nodevice" ? "No device" : "Nothing device");
+const range = n => Array.from({ length: n }, (_, i) => i + 1);
+const pressed = (cond) => `aria-pressed="${!!cond}"`;
+const TILES = {
+  hero: { name: "Buds", w: 2, h: 2, c: "light", s: "soft", render: () => `
+      <div class="lbl"><span>${modelName()}</span><span>${S.firmware ? "FW " + S.firmware : ""}</span></div>
+      <div class="art dots">${dots("buds")}</div>
+      <div class="foot"><div><div class="title">${S.status === "connected" ? "Connected" : S.status === "unavailable" ? "Busy" : "Searching"}</div>
+        <div class="lbl" style="margin-top:4px">${S.serial ? "SN " + S.serial.slice(-6) : "[" + S.status + "]"}</div></div>
+        <div class="lbl">${S.wear.left || S.wear.right ? "IN EAR" : "IDLE"}</div></div>` },
+  battery: { name: "Battery", w: 2, h: 1, c: "dark", s: "soft", render: () => {
+      const cell = (k, label) => { const b = S.battery[k], p = b ? b.pct : null, on = Math.round((p || 0) / 10);
+        return `<div><div class="n">${p === null ? "--" : p}<small>${p === null ? "" : "%"}</small></div>
+          <div class="segbar ${p !== null && p <= 20 ? "low" : ""}">${Array.from({ length: 10 }, (_, i) => `<span class="${i < on ? "on" : ""}"></span>`).join("")}</div>
+          <div class="meta">${label}${b && b.charging ? " · CHG" : ""}${k === "left" || k === "right" ? `<span class="ear ${S.wear[k] ? "on" : ""}"></span>` : ""}</div></div>`; };
+      return `<div class="lbl"><span>Battery</span></div><div class="bat">${BATS().map(([k, l]) => cell(k, l)).join("")}</div>`; } },
+  anc: { name: "Noise control", needs: f => f.anc || f.transparency, w: 2, h: 1, c: "light", s: "soft", render: () => {
+      const mode = S.anc === "off" || S.anc === "transparency" ? S.anc : "anc";
+      return `<div class="lbl"><span>Noise control</span><span>${S.anc}</span></div><div class="grow"></div>
+        <div class="seg"><button class="b" data-act="anc" data-v="off" ${pressed(mode === "off")}>Off</button>
+        ${F().transparency ? `<button class="b" data-act="anc" data-v="transparency" ${pressed(mode === "transparency")}>Trans</button>` : ""}
+        ${F().anc ? `<button class="b red" data-act="anc" data-v="${isAnc(S.anc) ? S.anc : "high"}" ${pressed(mode === "anc")}>ANC</button>` : ""}</div>
+        ${mode === "anc" && ancLv().length > 1 ? `<div class="seg" style="margin-top:6px">${ancLv().map(l => `<button class="b" data-act="anc" data-v="${l}" ${pressed(S.anc === l)}>${l === "adaptive" ? "Auto" : l}</button>`).join("")}</div>` : ""}`; } },
+  qanc: { name: "ANC toggle", needs: f => f.anc, w: 1, h: 1, c: "dark", s: "round", quick: () => isAnc(S.anc), act: "qanc",
+    render: () => `<div class="dots">${dots("anc", 5)}</div><div><div class="qname">ANC</div><div class="qstate">${isAnc(S.anc) ? S.anc : "off"}</div></div>` },
+  qtrans: { name: "Transparency", needs: f => f.transparency, w: 1, h: 1, c: "light", s: "round", quick: () => S.anc === "transparency", act: "qtrans",
+    render: () => `<div class="dots">${dots("trans", 5)}</div><div><div class="qname">Transparency</div><div class="qstate">${S.anc === "transparency" ? "on" : "off"}</div></div>` },
+  qlag: { name: "Low lag", needs: f => f.low_lag, w: 1, h: 1, c: "dark", s: "soft", quick: () => S.latency, act: "qlag",
+    render: () => `<div class="dots">${dots("lag", 5)}</div><div><div class="qname">Low lag</div><div class="qstate">${S.latency ? "on" : "off"}</div></div>` },
+  qinear: { name: "In-ear detection", needs: f => f.in_ear, w: 1, h: 1, c: "light", s: "soft", quick: () => S.in_ear, act: "qinear",
+    render: () => `<div class="dots">${dots("inear", 5)}</div><div><div class="qname">In-ear detect</div><div class="qstate">${S.in_ear ? "on" : "off"}</div></div>` },
+  sound: { name: "Sound & EQ", needs: f => !!f.eq, w: 2, h: 2, c: "light", s: "soft", render: t => `
+      <div class="lbl"><span>Sound</span><span>${customOn() ? "Custom · ±6 dB" : F().eq_names[S.listening] || ""}</span></div>
+      <div class="row-b chips">${F().eq_names.map((m, i) => `<button class="b" data-act="listening" data-v="${i}" ${pressed(S.listening === i)}>${m.replace("Enhance ", "")}</button>`).join("")}</div>
+      ${t.h < 2 || !F().custom_eq ? "" : !customOn()
+        ? `<div class="eq-off"><div class="lbl"><span>Pick Custom to shape bass, mid and treble</span></div></div>`
+        : `<div class="eq">${["Bass", "Mid", "Treble"].map((k, i) =>
+        `<div class="vs" data-eq="${i}"><div class="fill" style="height:${(S.custom_eq[i] + 6) / 12 * 100}%"></div><div class="mid"></div>
+         <div class="v">${S.custom_eq[i] > 0 ? "+" : ""}${S.custom_eq[i]}</div><div class="k">${k}</div></div>`).join("")}</div>`}` },
+  bass: { name: "Ultra Bass", needs: f => f.bass, w: 1, h: 1, c: "accent", s: "soft", render: () => `
+      <div class="lbl"><span>Ultra Bass</span><span>${S.bass.on ? "On" : "Off"}</span></div>
+      <button class="b" style="margin-top:10px;align-self:flex-start" data-act="bass" ${pressed(S.bass.on)}>${dots("bass", 3)} ${S.bass.on ? "On" : "Off"}</button>
+      <div class="blocks">${range(F().bass_levels).map(n => `<button data-act="basslvl" data-v="${n}" class="${n <= S.bass.level ? "on" : ""}" aria-label="Level ${n}"></button>`).join("")}</div>` },
+  dial: { name: "Smart Dial", needs: f => f.dial, w: 2, h: 2, c: "dark", s: "soft", render: () => `
+      <div class="lbl"><span>Smart Dial</span><span>Case</span></div>
+      <div class="dialwrap">${gauge()}<div class="rows">${gestureRows(4)}</div></div>` },
+  gestures: { name: "Gestures", needs: f => f.gestures, w: 2, h: 2, c: "light", s: "soft", render: () => `
+      <div class="lbl"><span>Gestures</span></div>
+      ${F().unit === "stereo" ? "" : `<div class="seg" style="margin-top:10px"><button class="b" data-act="gtab" data-v="2" ${pressed(gTab === 2)}>Left</button><button class="b" data-act="gtab" data-v="3" ${pressed(gTab === 3)}>Right</button></div>`}
+      <div class="rows">${gestureRows(gDev())}</div>` },
+  find: { name: "Find my buds", needs: f => f.find && f.unit !== "stereo", w: 2, h: 1, c: "muted", s: "soft", render: () => `
+      <div class="lbl"><span>Find my buds</span><span class="dots">${dots("find", 3)}</span></div><div class="grow"></div>
+      <div class="seg">${["left", "right", "both"].map(w => `<button class="b ${ringing === w ? "ringing" : ""}" data-act="ring" data-v="${w}">${w}</button>`).join("")}
+      <button class="b red" aria-pressed="true" data-act="ring" data-v="off">Stop</button></div>` },
+  info: { name: "Device info", w: 1, h: 1, c: "dark", s: "soft", render: () => `
+      <div class="lbl"><span>Device</span></div><div class="grow"></div>
+      <div class="big" style="font-size:clamp(16px, 15cqw, 34px)">${S.firmware || "--"}</div>
+      <div class="lbl" style="margin-top:6px"><span>Firmware</span></div>` },
+};
+const SIZES = [[1, 1], [2, 1], [1, 2], [2, 2]];
+const SHAPES = ["soft", "round", "sharp"];
+const COLORS = ["light", "dark", "accent", "muted"];
+
+const gDev = () => F().unit === "stereo" ? 6 : gTab;
+function gestureRows(device) {
+  const rows = S.gestures.filter(g => g.device === device);
+  if (!rows.length) return `<div class="empty">[LOADING]</div>`;
+  return rows.map(g => {
+    const key = `${g.device}-${g.button}-${g.type}`, known = (S.model.gestures || {})[key] || META.generic_actions;
+    const opts = known.includes(g.action) ? known : [g.action, ...known];
+    const sub = g.button === 9 ? "During call" : g.button === 10 ? "Button" : g.button === 5 ? "Slider" : g.device === 6 ? "Roller" : "";
+    return `<div class="r"><div class="t">${META.types[g.type] || "Gesture " + g.type}${sub ? `<small>${sub}</small>` : ""}</div>
+      <select data-k="${key}" aria-label="${META.types[g.type]}">${opts.map(a => `<option value="${a}" ${a === g.action ? "selected" : ""}>${META.actions[a] || "Action " + a}</option>`).join("")}</select></div>`;
+  }).join("");
+}
+function gauge() {
+  const rot = S.gestures.find(g => g.device === 4 && g.type === 10), on = rot && rot.action === 23;
+  let ticks = "";
+  for (let i = 0; i < 48; i++) {
+    const a = (i / 48) * Math.PI * 2 - Math.PI / 2, r1 = i % 4 ? 44 : 41, lit = on && i > 30 && i < 46;
+    ticks += `<line x1="${50 + Math.cos(a) * r1}" y1="${50 + Math.sin(a) * r1}" x2="${50 + Math.cos(a) * 47}" y2="${50 + Math.sin(a) * 47}" stroke="${lit ? "var(--t-accent)" : "currentColor"}" stroke-opacity="${lit ? 1 : .35}" stroke-width="${i % 4 ? 1 : 1.6}"/>`;
+  }
+  return `<svg class="gauge" viewBox="0 0 100 100" aria-hidden="true">${ticks}<circle cx="50" cy="50" r="30" fill="none" stroke="currentColor" stroke-opacity=".2"/>
+    <circle cx="50" cy="26" r="2.5" fill="var(--t-accent)"/><text x="50" y="49" text-anchor="middle" font-family="Doto" font-weight="900" font-size="13" fill="currentColor">${on ? "VOL" : "--"}</text>
+    <text x="50" y="61" text-anchor="middle" font-family="Space Mono" font-size="5.5" fill="currentColor" fill-opacity=".6" letter-spacing=".6">ROTATE</text></svg>`;
+}
+
+/* ── CELLS skin renderers (organic Voronoi theme, B/W + colour) ── */
+const BUD = "M60 20 C85 20 100 38 98 58 C96 74 84 80 78 92 C74 102 72 112 64 112 C56 112 56 100 54 90 C50 78 34 74 32 56 C30 36 40 20 60 20 Z";
+const TANK = "M30 4 C46 4 56 16 56 34 C56 54 46 66 30 66 C14 66 4 54 4 34 C4 16 14 4 30 4 Z";
+function gseg(opts, cur, act, cls = "") {
+  const i = Math.max(0, opts.findIndex(o => String(o[0]) === String(cur)));
+  return `<div class="gseg ${cls}" style="--n:${opts.length};--i:${i}"><div class="goo">${opts.map((_, k) => `<i class="pad" style="--k:${k}"></i>`).join("")}<i class="ind2"></i><i class="ind"></i></div>
+    <div class="lab">${opts.map(([v, l]) => `<button data-act="${act}" data-v="${v}" ${pressed(String(v) === String(cur))}>${l}</button>`).join("")}</div></div>`;
+}
+const quickCell = (label, on, state) => () => `<div class="cl"><div class="cl-title">${label}</div>
+  <span class="ltog ${on() ? "on" : ""}"><span class="goo"><i class="drip"></i><i class="th"></i></span></span><div class="cl-sub">${state()}</div></div>`;
+Object.assign(TILES.hero, { blob: () => `<div class="cl"><svg class="cl-buds ${S.status === "connected" ? "live" : ""}" viewBox="0 0 200 120" aria-hidden="true"><path class="l" d="${BUD}"/><path class="r" d="${BUD}"/></svg>
+  <div class="cl-title">${S.status === "connected" ? "Connected" : S.status === "unavailable" ? "Busy" : "Searching"}</div>
+  <div class="cl-sub">${S.wear.left || S.wear.right ? "in ear" : "idle"} · fw ${S.firmware || "–"}</div></div>` });
+Object.assign(TILES.battery, { blob: () => `<div class="cl"><div class="cl-bat">${BATS().map(([k, l]) => {
+    const b = S.battery[k], p = b ? b.pct : 0;
+    return `<div class="liq ${b && p <= 20 ? "low" : ""} ${b && b.charging ? "chg" : ""}" style="--stripe:url(#st-${k})"><svg viewBox="0 0 60 70" aria-hidden="true"><defs><clipPath id="tank-${k}"><path d="${TANK}"/></clipPath></defs>
+      <pattern id="st-${k}" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2.2" height="5" fill="currentColor"/></pattern>
+      <g clip-path="url(#tank-${k})"><path class="tank" d="${TANK}"/><g class="lvl" style="transform: translateY(${66 - p * 0.62}px)"><path class="wave" d="M-30 0 Q-22.5 -4 -15 0 T0 0 T15 0 T30 0 T45 0 T60 0 T75 0 T90 0 V80 H-30 Z"/></g>
+      <circle class="bub" cx="22" cy="62" r="2"/><circle class="bub" cx="33" cy="64" r="1.6"/><circle class="bub" cx="40" cy="61" r="1.3"/></g><path class="edge" d="${TANK}"/></svg>
+      <b>${b ? p + "%" : "–"}</b><span>${l}</span></div>`; }).join("")}</div></div>` });
+Object.assign(TILES.anc, { blob: () => {
+    const g = S.anc === "off" || S.anc === "transparency" ? S.anc : "anc";
+    return `<div class="cl"><div class="cl-title">Noise control</div>${gseg([["off", "Off"], ...(F().transparency ? [["transparency", "Trans"]] : []), ...(F().anc ? [["anc", "ANC"]] : [])], g, "ancg")}
+      ${g === "anc" && ancLv().length > 1 ? gseg(ancLv().map(l => [l, l === "adaptive" ? "Auto" : l[0].toUpperCase() + l.slice(1)]), S.anc, "anc", "accent") : ""}</div>`; } });
+Object.assign(TILES.qanc, { blob: quickCell("ANC", () => isAnc(S.anc), () => isAnc(S.anc) ? S.anc : "off") });
+Object.assign(TILES.qtrans, { blob: quickCell("Transparency", () => S.anc === "transparency", () => S.anc === "transparency" ? "on" : "off") });
+Object.assign(TILES.qlag, { blob: quickCell("Low lag", () => S.latency, () => S.latency ? "on" : "off") });
+Object.assign(TILES.qinear, { blob: quickCell("In-ear", () => S.in_ear, () => S.in_ear ? "auto-pause" : "off") });
+Object.assign(TILES.sound, { blob: t => `<div class="cl"><div class="cl-title">Sound</div>
+  <div class="row-b" style="justify-content:center">${F().eq_names.map((m, i) => `<button class="b" data-act="listening" data-v="${i}" ${pressed(S.listening === i)}>${m.replace("Enhance ", "")}</button>`).join("")}</div>
+  ${t.h < 2 || !F().custom_eq ? "" : !customOn() ? `<div class="cl-hint">Pick Custom to shape the sound</div>`
+    : `<div class="cl-eq">${["Bass", "Mid", "Treble"].map((k, i) => `<div class="eqb" data-eq="${i}" style="--v:${S.custom_eq[i]}"><i class="fill" style="height:0%"></i>
+      <span class="orb"><b class="v">${S.custom_eq[i] > 0 ? "+" : ""}${S.custom_eq[i]}</b></span><span class="k">${k}</span></div>`).join("")}</div>`}</div>` });
+Object.assign(TILES.bass, { blob: () => `<div class="cl"><div class="cl-title">Ultra Bass</div><div class="cl-bass">
+  <button class="orbb ${S.bass.on ? "on" : ""}" style="--lvl:${S.bass.level}" data-act="bass">${S.bass.on ? "On" : "Off"}</button>
+  <div class="lv">${range(F().bass_levels).map(n => `<button data-act="basslvl" data-v="${n}" class="${n <= S.bass.level ? "on" : ""}" aria-label="Level ${n}"></button>`).join("")}</div></div></div>` });
+Object.assign(TILES.dial, { blob: () => `<div class="cl" style="justify-content:flex-start"><div class="cl-title">Smart Dial</div><div class="rows">${gestureRows(4)}</div></div>` });
+Object.assign(TILES.gestures, { blob: () => `<div class="cl" style="justify-content:flex-start"><div class="cl-title">Gestures</div>${F().unit === "stereo" ? "" : gseg([[2, "Left"], [3, "Right"]], gTab, "gtab")}<div class="rows">${gestureRows(gDev())}</div></div>` });
+Object.assign(TILES.find, { blob: () => `<div class="cl"><div class="cl-title">Find my buds</div><div class="cl-find">${[["left", "L"], ["right", "R"], ["both", "L+R"]].map(([v, l]) =>
+    `<button class="rip ${ringing === v ? "ringing" : ""}" data-act="ring" data-v="${v}">${l}</button>`).join("")}<button class="rip stop" data-act="ring" data-v="off">Stop</button></div></div>` });
+Object.assign(TILES.info, { blob: () => `<div class="cl"><div class="cl-sub">firmware</div><div class="cl-big">${S.firmware || "–"}</div></div>` });
+
+/* ── prefs ── */
+const DEFAULT_PREFS = () => ({ order: Object.keys(TILES), tiles: {}, theme: "light", btnSize: "m", btnShape: "pill", radius: 30, gap: 12, cell: 150 });
+const BTN = { s: [32, 11, 12], m: [40, 12, 16], l: [48, 13, 20], xl: [58, 14, 24] };
+const BTN_R = { pill: "999px", soft: "12px", square: "4px" };
+const tp = id => ({ w: TILES[id].w, h: TILES[id].h, c: TILES[id].c, s: TILES[id].s, hidden: false, ...(P.tiles[id] || {}) });
+const setTp = (id, patch) => { P.tiles[id] = { ...tp(id), ...patch }; save(); };
+let saveT; const save = () => { clearTimeout(saveT); saveT = setTimeout(() => api().save_prefs(P), 300); };
+
+function applyPrefs() {
+  const r = document.documentElement.style, [h, fs, px] = BTN[P.btnSize];
+  document.documentElement.dataset.theme = P.theme;
+  $("#brandName").textContent = P.theme.startsWith("blob") ? "budsdesk" : modelName();
+  r.setProperty("--btn-h", h + "px"); r.setProperty("--btn-fs", fs + "px"); r.setProperty("--btn-px", px + "px");
+  r.setProperty("--btn-r", BTN_R[P.btnShape]); r.setProperty("--radius", P.radius + "px");
+  r.setProperty("--gap", P.gap + "px"); r.setProperty("--cell", P.cell + "px");
+  document.querySelectorAll("[data-pref]").forEach(el => {
+    if (el.tagName === "INPUT") el.value = P[el.dataset.pref];
+    else el.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === P[el.dataset.pref])));
+  });
+  $("#vRadius").textContent = P.radius + "px"; $("#vGap").textContent = P.gap + "px"; $("#vCell").textContent = P.cell + "px";
+  const hidden = P.order.filter(id => tp(id).hidden);
+  $("#hiddenList").innerHTML = hidden.length ? hidden.map(id => `<button class="b" data-show="${id}">+ ${TILES[id].name}</button>`).join("") : `<span class="empty">None</span>`;
+}
+
+/* ── grid build + render ── */
+let firstBuild = true;
+const isCells = () => P.theme.startsWith("blob");
+function cellsLayout(animate) {
+  if (!isCells()) return;
+  const items = P.order.filter(shown).map(id => { const t = tp(id); return { id, weight: t.w * t.h, shape: t.s }; });
+  Cells.layout($("#grid"), items, { gap: Math.max(6, P.gap), radius: P.radius }, animate);
+}
+// View Transitions morph every tile between old and new layout/theme (tiles carry view-transition-name)
+function vt(fn) {
+  if (!document.startViewTransition || reducedMotion) return fn();
+  const tr = document.startViewTransition(fn); // a newer transition skips this one; that's fine, so swallow the rejections
+  for (const p of [tr.ready, tr.finished, tr.updateCallbackDone]) p.catch(() => {});
+}
+function rebuild() { if (isCells()) build(true); else vt(() => build()); }
+// a tile shows unless the user hid it or the connected model lacks its feature
+const shown = id => TILES[id] && !tp(id).hidden && (!TILES[id].needs || !S || !S.model || TILES[id].needs(F()));
+let builtFor = null;
+function build(animateCells) {
+  builtFor = S && S.model ? S.model.base : null;
+  const visible = P.order.filter(shown);
+  $("#grid").innerHTML = visible.map((id, i) => {
+    const t = tp(id);
+    return `<div class="tile w${t.w} h${t.h} c-${t.c} s-${t.s} ${TILES[id].quick ? "quick" : ""} ${id}" data-id="${id}" style="--i:${i};--pal:var(--p${i % 7});view-transition-name:t-${id}" ${TILES[id].act ? `data-act="${TILES[id].act}" role="button" tabindex="0"` : ""}>
+      <div class="body" style="display:contents"></div>
+      <div class="ed"><span class="nm">${TILES[id].name}</span><button data-ed="size" title="Size">${t.w}×${t.h}</button><button data-ed="shape" title="Shape">${t.s}</button><button data-ed="color" title="Color">●</button><button data-ed="hide" title="Hide">✕</button></div></div>`;
+  }).join("");
+  document.querySelectorAll(".tile").forEach(el => { el.draggable = document.body.classList.contains("editing"); });
+  const g = $("#grid");
+  if (firstBuild && !reducedMotion) { g.classList.add("enter"); setTimeout(() => g.classList.remove("enter"), 1600); }
+  firstBuild = false;
+  cellsLayout(animateCells);
+  if (S) renderAll();
+}
+// Re-rendering between pointerdown and pointerup swaps the DOM under the cursor and eats the click,
+// so state pushes are held while a button is pressed and flushed right after.
+let ptrDown = false;
+document.addEventListener("pointerdown", () => { ptrDown = true; }, true);
+document.addEventListener("pointerup", () => { ptrDown = false; setTimeout(() => S && renderAll(), 0); }, true);
+// Patch the DOM in place instead of replacing it: elements survive state pushes, so CSS
+// transitions (toggle thumbs, gooey indicators, EQ orbs, meters) actually animate.
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+function morph(parent, html) {
+  const tpl = document.createElement("template"); tpl.innerHTML = html; syncKids(parent, tpl.content, parent.childNodes.length > 0);
+}
+// controls that appear after the first paint (e.g. the ANC level row) fade/rise in instead of popping
+const appear = n => { if (n.nodeType === 1 && !reducedMotion) n.animate([{ opacity: 0, transform: "translateY(4px) scale(.98)" }, { opacity: 1, transform: "none" }], { duration: 260, easing: "cubic-bezier(.2,0,0,1)" }); return n; };
+function syncKids(a, b, anim) {
+  const an = [...a.childNodes], bn = [...b.childNodes];
+  bn.forEach((nb, i) => {
+    const na = an[i];
+    if (!na) { const c = a.appendChild(nb.cloneNode(true)); if (anim) appear(c); return; }
+    if (na.nodeType !== nb.nodeType || na.nodeName !== nb.nodeName) { const c = nb.cloneNode(true); a.replaceChild(c, na); if (anim) appear(c); return; }
+    if (na.nodeType !== 1) { if (na.nodeValue !== nb.nodeValue) na.nodeValue = nb.nodeValue; return; }
+    for (const { name } of [...na.attributes]) if (!nb.hasAttribute(name)) na.removeAttribute(name);
+    for (const { name, value } of [...nb.attributes]) if (na.getAttribute(name) !== value) na.setAttribute(name, value);
+    syncKids(na, nb, anim);
+    if (na.tagName === "SELECT") { const o = nb.querySelector("option[selected]"); if (o) na.value = o.value; }
+  });
+  for (let i = an.length - 1; i >= bn.length; i--) a.removeChild(an[i]);
+}
+function renderAll() {
+  if (ptrDown) return;
+  document.querySelectorAll(".tile").forEach(el => {
+    if (el.contains(document.activeElement) && document.activeElement.tagName === "SELECT") return;
+    if (el.querySelector(".vs.drag, .eqb.drag")) return;
+    const T = TILES[el.dataset.id], body = el.querySelector(".body");
+    const n = [...el.parentElement.children].indexOf(el) + 1;
+    const R = (isCells() && T.blob) || T.render;
+    morph(body, R(tp(el.dataset.id), n));
+    if (T.quick) el.classList.toggle("active", !!T.quick());
+  });
+}
+
+function render(state) {
+  if (!META || !P) return;
+  S = state;
+  if ((S.model && S.model.base) !== builtFor) { applyPrefs(); rebuild(); } // other model -> other tiles
+  const st = $("#status"); st.dataset.s = S.status; st.querySelector("span").textContent = S.status === "unavailable" ? "busy" : S.status;
+  $("#notice").style.display = S.status === "unavailable" ? "block" : "none";
+  $("#noDev").style.display = S.status === "nodevice" ? "block" : "none";
+  $("#meta").textContent = S.status === "connected" ? `FW ${S.firmware} · CONNECTED` : `[${S.status.toUpperCase()}]`;
+  renderAll();
+}
+
+/* ── microinteractions ── */
+let ringing = null, ringT;
+// Write confirmation: an inline [SAVED] chip (Nothing) or a "Saved" pill (Cells).
+const WORDS = { saved: ["[SAVED]", "Saved"], ring: ["[RINGING]", "Ringing"], stop: ["[STOPPED]", "Stopped"], reset: ["[RESET]", "Reset"] };
+const word = k => WORDS[k][isCells() ? 1 : 0];
+function stamp(tile, txt) {
+  if (!tile) return;
+  tile.querySelector(".stamp")?.remove();
+  const s = document.createElement("span");
+  s.className = "stamp"; s.textContent = txt || word("saved");
+  tile.appendChild(s); setTimeout(() => s.remove(), 1400);
+}
+/* ── actions ── */
+function act(a, v) {
+  const A = api();
+  switch (a) {
+    case "anc": return A.anc(v);
+    case "ancg": return A.anc(v === "anc" ? (isAnc(S.anc) ? S.anc : "high") : v);
+    case "qanc": return A.anc(isAnc(S.anc) ? "off" : "high");
+    case "qtrans": return A.anc(S.anc === "transparency" ? "off" : "transparency");
+    case "qlag": return A.latency(!S.latency);
+    case "qinear": return A.in_ear(!S.in_ear);
+    case "listening": return A.listening(+v);
+    case "bass": return A.bass(!S.bass.on, S.bass.level);
+    case "basslvl": return A.bass(true, +v);
+    case "ring":
+      ringing = v === "off" ? null : v; clearTimeout(ringT);
+      if (ringing) ringT = setTimeout(() => { ringing = null; renderAll(); }, 30000); // buds stop on their own too
+      renderAll(); return A.ring(v);
+    case "gtab": gTab = +v; return renderAll();
+  }
+}
+
+/* vertical EQ slider drag */
+let eqT;
+function eqDrag(e) {
+  const el = e.target.closest(".vs, .eqb"); if (!el) return;
+  e.preventDefault(); el.classList.add("drag"); el.setPointerCapture(e.pointerId);
+  const i = +el.dataset.eq, start = S.custom_eq[i];
+  const move = ev => {
+    const r = el.getBoundingClientRect(), v = Math.max(-6, Math.min(6, Math.round(((r.bottom - ev.clientY) / r.height) * 12 - 6)));
+    if (v === S.custom_eq[i]) return;
+    S.custom_eq[i] = v;
+    el.querySelector(".fill").style.height = (v + 6) / 12 * 100 + "%";
+    el.querySelector(".v").textContent = (v > 0 ? "+" : "") + v;
+    el.style.setProperty("--v", v);
+    clearTimeout(eqT); eqT = setTimeout(() => api().custom_eq(...S.custom_eq), 200);
+  };
+  move(e);
+  el.onpointermove = move;
+  el.onpointerup = el.onpointercancel = () => { el.onpointermove = null; el.classList.remove("drag"); if (S.custom_eq[i] !== start) stamp(el.closest(".tile")); };
+}
+
+// device picker: shown when more than one Nothing/CMF device is paired (last option rescans)
+async function loadDevices() {
+  const ds = await api().devices(), sel = $("#devPick");
+  sel.innerHTML = ds.map(d => `<option value="${d.mac}" ${d.current ? "selected" : ""}>${d.name}</option>`).join("") + `<option value="?">Rescan…</option>`;
+  sel.hidden = ds.length < 2;
+}
+async function init() {
+  [META, P] = await Promise.all([api().meta(), api().prefs()]);
+  P = { ...DEFAULT_PREFS(), ...(P || {}) };
+  if (!["light", "dark", "blob", "blobc"].includes(P.theme)) P.theme = "dark"; // e.g. the removed "retro" theme
+  P.order = [...P.order.filter(id => TILES[id]), ...Object.keys(TILES).filter(id => !P.order.includes(id))];
+  applyPrefs(); build();
+  loadDevices();
+  $("#devPick").onchange = async e => { if (e.target.value === "?") return loadDevices(); render(await api().select(e.target.value)); loadDevices(); };
+
+  const grid = $("#grid");
+  grid.addEventListener("click", e => {
+    const ed = e.target.closest("[data-ed]");
+    if (ed) {
+      const id = ed.closest(".tile").dataset.id, t = tp(id);
+      if (ed.dataset.ed === "size") { const i = SIZES.findIndex(([w, h]) => w === t.w && h === t.h); const [w, h] = SIZES[(i + 1) % SIZES.length]; setTp(id, { w, h }); }
+      if (ed.dataset.ed === "shape") setTp(id, { s: SHAPES[(SHAPES.indexOf(t.s) + 1) % SHAPES.length] });
+      if (ed.dataset.ed === "color") setTp(id, { c: COLORS[(COLORS.indexOf(t.c) + 1) % COLORS.length] });
+      if (ed.dataset.ed === "hide") setTp(id, { hidden: true });
+      applyPrefs(); return rebuild();
+    }
+    if (document.body.classList.contains("editing")) return;
+    const el = e.target.closest("[data-act]");
+    if (!el || !S || S.status !== "connected") return;
+    act(el.dataset.act, el.dataset.v);
+    if (el.dataset.act === "ring") stamp(el.closest(".tile"), word(el.dataset.v === "off" ? "stop" : "ring"));
+    else if (el.dataset.act !== "gtab") stamp(el.closest(".tile"));
+  });
+  grid.addEventListener("dblclick", e => { // double-click an EQ control = back to flat
+    const f = e.target.closest(".vs, .eqb"); if (!f || !S || document.body.classList.contains("editing")) return;
+    S.custom_eq[+f.dataset.eq] = 0; api().custom_eq(...S.custom_eq); renderAll();
+    stamp(f.closest(".tile"), word("reset"));
+  });
+  grid.addEventListener("keydown", e => {
+    if ((e.key === "Enter" || e.key === " ") && e.target.matches(".tile[data-act]")) { e.preventDefault(); act(e.target.dataset.act); stamp(e.target); }
+  });
+  grid.addEventListener("change", e => {
+    if (!e.target.dataset.k) return;
+    const [d, b, t] = e.target.dataset.k.split("-").map(Number);
+    api().gesture(d, b, t, +e.target.value); e.target.blur(); stamp(e.target.closest(".tile"));
+  });
+  grid.addEventListener("pointerdown", e => { if (!document.body.classList.contains("editing") && S && S.status === "connected") eqDrag(e); });
+
+  // drag-to-reorder
+  let dragId = null;
+  grid.addEventListener("dragstart", e => { const t = e.target.closest(".tile"); if (!t) return; dragId = t.dataset.id; t.classList.add("dragging"); e.dataTransfer.effectAllowed = "move"; });
+  grid.addEventListener("dragend", () => { document.querySelectorAll(".dragging,.over").forEach(x => x.classList.remove("dragging", "over")); dragId = null; });
+  grid.addEventListener("dragover", e => { e.preventDefault(); const t = e.target.closest(".tile");
+    document.querySelectorAll(".over").forEach(x => x !== t && x.classList.remove("over")); if (t && t.dataset.id !== dragId) t.classList.add("over"); });
+  grid.addEventListener("drop", e => {
+    e.preventDefault(); const t = e.target.closest(".tile"); if (!t || !dragId || t.dataset.id === dragId) return;
+    const o = P.order.filter(id => id !== dragId), to = o.indexOf(t.dataset.id), from = P.order.indexOf(dragId);
+    o.splice(from < P.order.indexOf(t.dataset.id) ? to + 1 : to, 0, dragId);
+    P.order = o; save(); rebuild();
+  });
+
+  $("#editBtn").onclick = () => {
+    const on = document.body.classList.toggle("editing");
+    $("#editBtn").classList.toggle("on", on); $("#editBtn").textContent = on ? "Done" : "Edit";
+    document.querySelectorAll(".tile").forEach(el => el.draggable = on);
+  };
+  const toggleSheet = open => document.body.classList.toggle("open", open);
+  $("#setBtn").onclick = () => toggleSheet(true);
+  $("#closeSheet").onclick = $("#scrim").onclick = () => toggleSheet(false);
+  document.addEventListener("keydown", e => e.key === "Escape" && toggleSheet(false));
+  $("#sheet").addEventListener("click", e => {
+    const seg = e.target.closest("[data-pref] button");
+    if (seg) {
+      const k = seg.parentElement.dataset.pref; P[k] = seg.dataset.v; save();
+      if (k === "theme") vt(() => { applyPrefs(); Cells.reset(); build(); }); // cross-theme morph
+      else applyPrefs();
+    }
+    const show = e.target.closest("[data-show]");
+    if (show) { setTp(show.dataset.show, { hidden: false }); applyPrefs(); rebuild(); }
+  });
+  let slideT;
+  $("#sheet").addEventListener("input", e => {
+    const k = e.target.dataset.pref; if (!k) return;
+    P[k] = +e.target.value; applyPrefs(); save();
+    if (isCells() && (k === "gap" || k === "radius")) { clearTimeout(slideT); slideT = setTimeout(() => cellsLayout(false), 60); }
+  });
+  $("#resetBtn").onclick = () => { P = DEFAULT_PREFS(); vt(() => { applyPrefs(); Cells.reset(); build(); }); save(); };
+  // Cells: re-solve on resize; breathe the hovered cell; ripple from the press point
+  let rsT; new ResizeObserver(() => { clearTimeout(rsT); rsT = setTimeout(() => cellsLayout(false), 120); }).observe(grid);
+  let leaveT;
+  grid.addEventListener("mouseover", e => {
+    if (!isCells() || document.body.classList.contains("editing") || ptrDown) return;
+    const t = e.target.closest(".tile"); clearTimeout(leaveT);
+    if (t) Cells.hover(t.dataset.id); else leaveT = setTimeout(() => Cells.hover(null), 140);
+  });
+  grid.addEventListener("mouseleave", () => { clearTimeout(leaveT); if (isCells()) leaveT = setTimeout(() => Cells.hover(null), 140); });
+  grid.addEventListener("pointerdown", e => {
+    const t = e.target.closest(".tile"); if (!t || !isCells() || reducedMotion || document.body.classList.contains("editing")) return;
+    const r = t.getBoundingClientRect(), s = document.createElement("span");
+    s.className = "cl-ripple"; s.style.left = e.clientX - r.left + "px"; s.style.top = e.clientY - r.top + "px";
+    t.appendChild(s); setTimeout(() => s.remove(), 750);
+  });
+
+  render(await api().state());
+}
+window.addEventListener("pywebviewready", init);
+</script>
+</body>
+</html>

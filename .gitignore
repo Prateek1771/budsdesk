@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+build/
+dist/
+*.tmp
+reference_images/
+.venv/

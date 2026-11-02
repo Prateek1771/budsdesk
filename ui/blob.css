@@ -1,0 +1,205 @@
+/* CELLS: organic Voronoi theme. [data-theme=blob] = black & white (the reference),
+   [data-theme=blobc] = colour. Only tokens differ; everything else is shared via ^=blob. */
+:root[data-theme=blob] {
+  --page: #e8e6e0; --page-dot: transparent; --fg: #111; --mute: #6f6c66;
+  /* shades of black & white: inactive cells stay >= #585858, active light cells go #3a3a3a; none merges into the #000 frame */
+  --frame: #000;
+  --t-light: #f6f5f1; --t-light-fg: #111;
+  --t-dark: #585858; --t-dark-fg: #fff;
+  --t-accent: #9d9a93; --t-accent-fg: #111;
+  --t-muted: #c4c1ba; --t-muted-fg: #111;
+  --hi: #111; --low: #111; /* page level only; inside cells these follow the cell's ink (below) */
+  --p0: #f6f5f1; --p1: #e9e7e1; --p2: #dcd9d2; --p3: #f0efea; --p4: #e4e2dc; --p5: #f6f5f1; --p6: #dedbd4;
+  --sheet: #f3f1ec; color-scheme: light;
+}
+:root[data-theme=blobc] {
+  --page: #fbf6ee; --page-dot: transparent; --fg: #141414; --mute: #77706a;
+  --frame: #141414;
+  --t-light: #ffd84d; --t-light-fg: #141414;
+  --t-dark: #474747; --t-dark-fg: #fff; /* light enough to never merge into the frame */
+  --t-accent: #ff8a7a; --t-accent-fg: #141414; /* cobalt is reserved for "active" */
+  --t-muted: #d9cfc0; --t-muted-fg: #141414;
+  --on-bg: #2f5bff; --on-fg: #fff;
+  --hi: #2f5bff; --low: #ff5a4e;
+  --p0: #ffd84d; --p1: #9be3c4; --p2: #c9b6ff; --p3: #ff8a7a; --p4: #8fd3ff; --p5: #ffc49b; --p6: #c5d99a;
+  --sheet: #fbf6ee; color-scheme: light;
+}
+:root[data-theme^=blob] {
+  --sans: "Inter Tight", "Segoe UI Variable", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+  --dot: "Inter Tight", system-ui, sans-serif;
+  --shadow: none;
+}
+[data-theme^=blob] body { font-family: var(--sans); background-image: none; padding-bottom: 18px; }
+[data-theme^=blob] .brand { font: 800 24px/1 var(--sans); letter-spacing: -.03em; text-transform: none; }
+[data-theme^=blob] .brand small { font: 500 11px var(--mono); letter-spacing: .02em; text-transform: none; color: var(--mute); }
+[data-theme^=blob] .hbtn { font: 600 12px var(--sans); letter-spacing: 0; text-transform: none; background: var(--frame); color: #fff; height: 36px; border-radius: 999px; }
+[data-theme^=blob] .hbtn.on { background: var(--hi); }
+[data-theme^=blob] .notice { border-radius: 999px; background: var(--frame); color: #fff; font: 500 13px var(--sans); }
+
+/* ── the frame: a black poster whose gutters are the cell gaps ── */
+[data-theme^=blob] .grid { display: block; position: relative; background: var(--frame); border-radius: calc(var(--radius) + 6px);
+  height: max(600px, calc(100vh - 104px)); max-width: 1400px; overflow: hidden; }
+[data-theme^=blob] .tile { position: absolute; padding: 0; border-radius: 0; box-shadow: none; overflow: hidden; container-type: normal;
+  --pal: var(--p0); background: var(--bg); color: var(--tf); display: block;
+  transition: background .5s var(--ease), color .5s var(--ease), opacity .2s; }
+[data-theme^=blob] .tile.c-light { --bg: var(--pal); }
+/* B/W: highlights, ripples, low battery and the saved pill use the cell's own ink, never a fixed black */
+[data-theme=blob] .tile { --hi: var(--tf); --low: var(--tf); }
+[data-theme^=blob] .tile::after, [data-theme^=blob] .tile::before { display: none; }
+[data-theme^=blob] .tile .body { display: flex !important; flex-direction: column; position: absolute;
+  left: var(--bx, 0); top: var(--by, 0); width: var(--bw, 100%); height: var(--bh, 100%); container-type: size;
+  transition: left .45s var(--ease-spring), top .45s var(--ease-spring), width .45s var(--ease-spring), height .45s var(--ease-spring); }
+[data-theme=blobc] .tile.quick.active { --bg: var(--on-bg); --tf: var(--on-fg); }
+/* B/W active: invert against the cell's own shade, staying clear of the black frame */
+[data-theme=blob] .tile.quick.active { --bg: #3a3a3a; --tf: #fff; }
+[data-theme=blob] .tile.quick.active.c-dark { --bg: #fff; --tf: #111; }
+[data-theme^=blob] .tile:active { filter: brightness(.97); }
+
+/* touch ripple from the press point (clipped to the cell by clip-path) */
+.cl-ripple { position: absolute; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; pointer-events: none;
+  background: var(--hi); opacity: .22; animation: clrip .7s var(--ease) forwards; z-index: 0; }
+@keyframes clrip { to { transform: scale(40); opacity: 0; } }
+
+/* ── typography inside cells (reference: short, bold, centred) ── */
+[data-theme^=blob] .cl { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; position: relative; z-index: 1; }
+[data-theme^=blob] .cl-title { font: 800 clamp(14px, 7cqw, 22px)/1.05 var(--sans); letter-spacing: -.02em; }
+[data-theme^=blob] .cl-sub { font: 500 11px var(--mono); opacity: .78; }
+[data-theme^=blob] .tile.quick.active .cl-sub { opacity: 1; }
+[data-theme^=blob] .cl-big { font: 800 clamp(18px, 13cqw, 40px)/1 var(--sans); letter-spacing: -.04em; }
+@container (max-height: 90px) { [data-theme^=blob] .cl-sub { display: none; } }
+
+/* pebble buttons: every .b gets an organic, slightly irregular outline */
+[data-theme^=blob] .tile .b { font: 600 var(--btn-fs) var(--sans); letter-spacing: 0; text-transform: none; height: var(--btn-h);
+  border-radius: 58% 42% 55% 45% / 52% 48% 52% 48%; background: color-mix(in srgb, var(--tf) 9%, transparent);
+  transition: transform .45s var(--ease-spring), background .3s var(--ease), color .3s var(--ease), border-radius .6s var(--ease-spring); }
+[data-theme^=blob] .tile .b:nth-child(2n) { border-radius: 45% 55% 42% 58% / 48% 54% 46% 52%; }
+[data-theme^=blob] .tile .b:nth-child(3n) { border-radius: 52% 48% 60% 40% / 55% 45% 55% 45%; }
+[data-theme^=blob] .tile .b:hover { transform: scale(1.04); border-radius: 50%; }
+[data-theme^=blob] .tile .b:active { transform: scale(.94); }
+[data-theme^=blob] .tile .b[aria-pressed=true] { background: var(--tf); color: var(--bg); transform: scale(1.06); }
+[data-theme^=blob] .tile .b.red[aria-pressed=true] { background: var(--hi); color: #fff; }
+[data-theme=blob] .tile .b.red[aria-pressed=true] { background: var(--tf); color: var(--bg); }
+
+/* ── gooey segmented selector: the indicator blob stretches between options ── */
+.gseg { position: relative; width: 100%; height: var(--btn-h); }
+.gseg .goo { position: absolute; inset: 0; filter: url(#goo); }
+.gseg .pad, .gseg .ind, .gseg .ind2 { position: absolute; top: 15%; height: 70%; width: calc(100% / var(--n) - 10px); border-radius: 999px; }
+.gseg .pad { background: color-mix(in srgb, var(--tf) 10%, transparent); left: calc(var(--k) * 100% / var(--n) + 5px); }
+.gseg .ind, .gseg .ind2 { top: 0; height: 100%; background: var(--tf); left: calc(var(--i) * 100% / var(--n) + 5px); }
+.gseg .ind { transition: left .5s var(--ease-spring); }
+.gseg .ind2 { transition: left .85s var(--ease-spring); width: calc(100% / var(--n) - 26px); margin-left: 8px; top: 18%; height: 64%; }
+.gseg .lab { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(var(--n), 1fr); }
+.gseg .lab button { all: unset; cursor: pointer; text-align: center; font: 600 var(--btn-fs) var(--sans); transition: color .35s var(--ease); position: relative; }
+.gseg .lab button[aria-pressed=true] { color: var(--bg); }
+.gseg.accent .ind, .gseg.accent .ind2 { background: var(--hi); }
+.gseg.accent .lab button[aria-pressed=true] { color: #fff; }
+[data-theme=blob] .gseg.accent .ind, [data-theme=blob] .gseg.accent .ind2 { background: var(--tf); }
+[data-theme=blob] .gseg.accent .lab button[aria-pressed=true] { color: var(--bg); }
+
+/* ── liquid toggle: thumb + trailing drip under the goo filter ── */
+.ltog { position: relative; width: 62px; height: 34px; border-radius: 999px; background: color-mix(in srgb, var(--tf) 12%, transparent); flex: none; }
+.ltog .goo { position: absolute; inset: 0; filter: url(#goo); }
+.ltog i { position: absolute; top: 5px; left: 5px; width: 24px; height: 24px; border-radius: 50%; background: var(--tf); }
+.ltog .th { transition: transform .5s var(--ease-spring); }
+.ltog .drip { transition: transform .85s var(--ease-spring); width: 16px; height: 16px; top: 9px; left: 9px; }
+.ltog.on .th, .ltog.on .drip { transform: translateX(28px); }
+
+/* ── buds hero: two wobbling blobs ── */
+.cl-buds { width: min(80%, 260px); height: auto; max-height: 55%; overflow: visible; }
+.cl-buds path { fill: var(--tf); }
+.cl-buds .r { transform: scale(-1, 1); transform-origin: 100px 60px; }
+.cl-buds.live path { animation: wob 3.4s ease-in-out infinite alternate; }
+.cl-buds.live .r { animation-delay: -1.7s; }
+@keyframes wob { to { d: path("M58 18 C84 16 102 36 99 58 C97 75 86 82 79 93 C75 103 72 113 63 112 C55 111 55 99 53 89 C49 77 31 73 30 54 C29 33 38 20 58 18 Z"); } }
+@container (max-height: 160px) { .cl-buds { display: none; } }
+
+/* ── battery: liquid-filled blobs ── */
+.cl-bat { display: flex; gap: 6%; width: 100%; justify-content: center; align-items: flex-end; }
+.liq { flex: 1; max-width: 120px; display: grid; justify-items: center; gap: 4px; }
+.liq svg { width: 100%; height: auto; overflow: visible; }
+.liq .edge { fill: none; stroke: var(--tf); stroke-width: 2.4; }
+.liq .tank { fill: color-mix(in srgb, var(--tf) 10%, transparent); }
+.liq .lvl { transition: transform 1.1s var(--ease-spring); }
+.liq .wave { fill: var(--tf); animation: wave 2.6s linear infinite; }
+[data-theme=blobc] .liq .wave { fill: var(--hi); }
+.liq.low .wave { fill: var(--low); }
+.liq svg { color: var(--tf); }
+[data-theme=blob] .liq.low .wave { fill: var(--stripe); }
+.liq.low span::after { content: " · low"; }
+@keyframes wave { to { transform: translateX(-30px); } }
+.liq .bub { fill: var(--bg); opacity: 0; }
+.liq.chg .bub { animation: bub 1.8s ease-in infinite; }
+.liq.chg .bub:nth-of-type(2) { animation-delay: .6s; } .liq.chg .bub:nth-of-type(3) { animation-delay: 1.2s; }
+@keyframes bub { 0% { transform: translateY(0); opacity: 0; } 20% { opacity: .9; } 100% { transform: translateY(-34px); opacity: 0; } }
+.liq b { font: 800 clamp(13px, 6cqw, 20px) var(--sans); letter-spacing: -.02em; }
+.liq span { font: 500 10px var(--mono); opacity: .88; }
+/* low battery is carried by the red/striped liquid + "low" label; the number keeps full-contrast ink */
+
+/* ── EQ: drag the orb up/down, its size is the gain ── */
+.cl-eq { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; width: 100%; flex: 1; min-height: 70px; }
+.eqb { position: relative; cursor: ns-resize; touch-action: none; display: grid; place-items: center; }
+.eqb .fill { display: none; }
+.eqb .orb { width: calc(34% + (var(--v) + 6) * 4.2%); max-width: 92%; aspect-ratio: 1; border-radius: 50%; background: var(--tf); color: var(--bg);
+  display: grid; place-items: center; transition: width .5s var(--ease-spring), border-radius .6s var(--ease-spring); }
+[data-theme=blobc] .eqb .orb { background: var(--hi); color: #fff; }
+.eqb.drag .orb { transition: width .08s linear; border-radius: 46% 54% 52% 48% / 55% 45% 55% 45%; }
+.eqb .v { font: 800 clamp(11px, 5cqw, 16px) var(--sans); }
+.eqb .k { position: absolute; bottom: 0; font: 500 10px var(--mono); opacity: .8; }
+.cl-hint { font: 500 11px var(--sans); opacity: .55; }
+
+/* ── ultra bass: one pulsing orb + level dots ── */
+.cl-bass { display: grid; justify-items: center; gap: 10px; }
+.orbb { all: unset; cursor: pointer; width: clamp(54px, 32cqmin, 96px); aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center;
+  font: 800 12px var(--sans); background: color-mix(in srgb, var(--tf) 12%, transparent); transition: background .4s var(--ease), transform .45s var(--ease-spring); }
+.orbb:active { transform: scale(.92); }
+.orbb.on { background: var(--tf); color: var(--bg); animation: thump calc(1.5s - var(--lvl) * .2s) var(--ease-spring) infinite; }
+[data-theme=blobc] .orbb.on { background: var(--hi); color: #fff; }
+@keyframes thump { 0%, 100% { transform: scale(1); border-radius: 50%; } 30% { transform: scale(1.1); border-radius: 46% 54% 52% 48%; } }
+.lv { display: flex; gap: 7px; }
+.lv button { all: unset; cursor: pointer; width: 12px; height: 12px; border-radius: 50%; background: color-mix(in srgb, var(--tf) 18%, transparent); transition: transform .4s var(--ease-spring), background .3s; }
+.lv button.on { background: var(--tf); transform: scale(1.15); }
+.lv button:hover { transform: scale(1.35); }
+
+/* ── find: ripple rings while a bud rings ── */
+.cl-find { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.rip { all: unset; cursor: pointer; position: relative; width: clamp(42px, 18cqw, 64px); aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center;
+  font: 700 12px var(--sans); background: color-mix(in srgb, var(--tf) 10%, transparent); transition: transform .4s var(--ease-spring), background .3s; }
+.rip:hover { transform: scale(1.06); } .rip:active { transform: scale(.92); }
+.rip.stop { background: var(--tf); color: var(--bg); }
+[data-theme=blobc] .rip.stop { background: var(--low); color: #141414; }
+.rip.ringing { background: var(--tf); color: var(--bg); }
+[data-theme=blobc] .rip.ringing { background: var(--hi); color: #fff; }
+.rip.ringing::before, .rip.ringing::after { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--tf); animation: rings 1.6s ease-out infinite; }
+.rip.ringing::after { animation-delay: .8s; }
+@keyframes rings { from { transform: scale(1); opacity: .8; } to { transform: scale(2.2); opacity: 0; } }
+
+/* ── config rows ── */
+[data-theme^=blob] .rows { width: 100%; margin-top: 4px; text-align: left; }
+[data-theme^=blob] .r { border-top: 1px solid color-mix(in srgb, var(--tf) 14%, transparent); padding: 6px 0; }
+[data-theme^=blob] .r .t { font: 600 12px var(--sans); }
+[data-theme^=blob] .r .t small { font: 500 9.5px var(--mono); letter-spacing: 0; text-transform: none; opacity: .8; }
+[data-theme^=blob] select { border-radius: 999px; font: 600 11.5px var(--sans); height: 30px; }
+
+/* ── write confirmation ── */
+[data-theme^=blob] .stamp { top: auto; bottom: 14px; right: 50%; translate: 50% 0; border-radius: 999px; font: 700 11px var(--sans); letter-spacing: 0;
+  text-transform: none; background: var(--tf); color: var(--bg); padding: 5px 12px; animation: clstamp 1.4s var(--ease-spring) forwards; }
+[data-theme=blobc] .stamp { background: var(--hi); }
+@keyframes clstamp { 0% { opacity: 0; transform: translateY(8px) scale(.6); } 18%, 75% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-4px); } }
+
+/* ── edit mode + sheet ── */
+[data-theme^=blob] .ed { left: var(--bx); top: var(--by); width: var(--bw); height: var(--bh); inset: auto; padding: 0; }
+[data-theme^=blob] .ed .nm { font: 800 15px var(--sans); }
+[data-theme^=blob] .ed button { font: 600 10px var(--sans); text-transform: none; }
+[data-theme^=blob] .editing .tile .body > * { opacity: .1; }
+[data-theme^=blob] .tile.over { outline: none; filter: brightness(.9); }
+[data-theme^=blob] .sheet { border-radius: 32px; font-family: var(--sans); }
+[data-theme^=blob] .sheet .b { font: 600 12px var(--sans); letter-spacing: 0; text-transform: none; }
+[data-theme^=blob] .sheet h3 { font: 800 24px var(--sans); text-transform: none; letter-spacing: -.03em; }
+[data-theme^=blob] .opt .lbl { font: 600 11px var(--sans); letter-spacing: 0; text-transform: none; }
+
+/* ── motion: organic springs (overshoot, ~450ms) ── */
+:root[data-theme^=blob] { --ease: cubic-bezier(.3,0,.2,1); --ease-enter: cubic-bezier(.05,.7,.1,1); --ease-spring: cubic-bezier(.34,1.45,.5,1); --vt: 480ms; }
+[data-theme^=blob] .grid.enter .tile { animation: cellGrow .75s var(--ease-spring) both; animation-delay: calc(var(--i) * 40ms); }
+@keyframes cellGrow { from { opacity: 0; transform: scale(.8); } }
+@container (max-height: 120px) { [data-theme^=blob] .cl { gap: 4px; } [data-theme^=blob] .cl-title { font-size: 13px; } }
