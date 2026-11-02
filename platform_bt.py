@@ -66,17 +66,25 @@ def paired_devices():
 
 
 # ── RFCOMM ──────────────────────────────────────────────────────────────
+class _Sock(socket.socket):
+    """send() always sends the whole frame, like the macOS channel (socket attributes are read-only,
+    so this has to be a subclass; assigning s.send = s.sendall raises AttributeError)."""
+
+    def send(self, data, *flags):
+        self.sendall(data, *flags)
+        return len(data)
+
+
 def open_rfcomm(mac: str, channel: int, timeout: float = 6):
     if sys.platform == "darwin":
         return _MacRFCOMM(mac, channel, timeout)
-    s = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
+    s = _Sock(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
     s.settimeout(timeout)
     try:
         s.connect((mac, channel))
     except OSError:
         s.close()
         raise
-    s.send = s.sendall  # one interface for every platform
     return s
 
 
@@ -165,4 +173,9 @@ if __name__ == "__main__":
            "Device 00:11:22:33:44:55 JBL Flip 5\n"
            "Device AA:BB:CC:DD:EE:01 CMF Buds 2a\n")
     assert parse_bluetoothctl(ctl) == [("Nothing Headphone (1)", "2C:BE:EB:11:22:33"), ("CMF Buds 2a", "AA:BB:CC:DD:EE:01")]
+    # the RFCOMM wrapper must be constructible and send whole frames (v1.0.0-1.0.3 crashed the connect thread here)
+    a, b = socket.socketpair()
+    w = _Sock(a.family, a.type, fileno=a.detach())
+    assert w.send(b"\x55" * 9) == 9 and b.recv(16) == b"\x55" * 9
+    w.close(); b.close()
     print("ok; paired here:", paired_devices())

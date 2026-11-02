@@ -163,8 +163,24 @@ class Buds:
         self._stop = threading.Event()
 
     def start(self):
-        threading.Thread(target=self._run, daemon=True).start()
+        threading.Thread(target=self._supervise, daemon=True).start()
         return self
+
+    def _supervise(self):
+        """Keep the link loop alive: an unexpected error used to kill this thread silently and leave the UI on
+        "connecting" forever (v1.0.0-1.0.3). Now it is reported and the loop restarts."""
+        import traceback
+        while not self._stop.is_set():
+            try:
+                return self._run()
+            except Exception:
+                traceback.print_exc()
+                with self._lock:
+                    if self._sock:
+                        self._sock.close()
+                    self._sock = None
+                self._set(status="unavailable")
+                self._stop.wait(5)
 
     def stop(self):
         self._stop.set()
