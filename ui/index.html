@@ -136,16 +136,26 @@ header { display: flex; align-items: center; gap: 10px; max-width: 1280px; margi
 .hero .art { flex: 1; display: grid; place-items: center; min-height: 0; }
 .hero .art svg { width: min(78%, 240px); height: auto; max-height: 100%; }
 /* device hero (#4): each bud reflects its state; --beat (0..1) is written per frame while audio plays */
-.hero .art.pair { display: flex; justify-content: center; align-items: center; gap: 6%; }
-.hero .art.pair .bud { display: grid; place-items: center; width: 36%; max-width: 116px; }
-.hero .art.pair .bud.u { width: min(78%, 240px); max-width: none; }
-.hero .art.pair .bud svg { width: 100%; }
+/* sized by the HEIGHT left between header and footer, so the pair shrinks to fit 1x1 / 2x1 instead of overlapping */
+.hero .art.pair { display: flex; justify-content: center; align-items: center; gap: 6%; flex: 1; min-height: 0; overflow: hidden; padding: 6px 0; }
+.hero .art.pair .bud { height: 100%; max-height: 180px; min-width: 0; display: flex; align-items: center; justify-content: center; }
+.hero .art.pair .bud svg { height: 100%; width: auto; max-width: 100%; max-height: 100%; }
 .bud { transform: scale(calc(var(--sz, 1) * (1 + var(--beat, 0) * .07))); transition: opacity .4s var(--ease), filter .4s var(--ease), transform .12s ease-out; }
 .bud.off { opacity: .38; filter: grayscale(1); --sz: .9; }
 .bud.gone { opacity: .16; filter: grayscale(1); --sz: .85; }
 @media (prefers-reduced-motion: reduce) { .bud { transform: scale(var(--sz, 1)); transition: none; } }
 .hero .foot { display: flex; justify-content: space-between; align-items: end; gap: 8px; }
-@container (max-height: 200px) { .hero .art { display: none; } .hero .foot { margin-top: auto; } }
+@container (max-height: 200px) { .hero .art { display: none; } .hero .art.pair { display: flex; padding: 2px 0; } .hero .foot { margin-top: auto; } }
+@container (max-height: 90px) { .hero .art.pair { display: none; } }
+/* narrow tiles (1x1 / 1x2): drop FW and SN (the Device tile shows them) so the buds keep a usable band */
+@container (max-width: 200px) {
+  .hero > .body > .lbl span:last-child, .hero .lbl[data-sn] { display: none; }
+  .hero > .body > .lbl span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .hero .foot { flex-direction: column; align-items: flex-start; gap: 3px; }
+  .hero .foot .title { font-size: 18px; }
+  .hero .foot > .lbl { white-space: nowrap; }
+}
+.hero .art.pair { padding-bottom: 8px; } /* breathing room above "Connected" */
 
 /* eq: vertical pill sliders */
 .eq { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; flex: 1; min-height: 0; margin-top: 12px; }
@@ -308,7 +318,7 @@ const TILES = {
       <div class="art pair">${F().unit === "stereo" ? `<span class="bud u ${budState("unit")}">${dots("buds")}</span>`
         : `<span class="bud bl ${budState("left")}">${dots("budL")}</span><span class="bud br ${budState("right")}">${dots("budR")}</span>`}</div>
       <div class="foot"><div><div class="title">${S.status === "connected" ? "Connected" : S.status === "unavailable" ? "Busy" : S.status === "nodevice" ? "No device" : "Searching"}</div>
-        <div class="lbl" style="margin-top:4px">${S.serial ? "SN " + S.serial.slice(-6) : "[" + S.status + "]"}</div></div>
+        <div class="lbl" data-sn style="margin-top:4px">${S.serial ? "SN " + S.serial.slice(-6) : "[" + S.status + "]"}</div></div>
         <div class="lbl">${wearText().toUpperCase()}</div></div>` },
   battery: { name: "Battery", w: 2, h: 1, c: "dark", s: "soft", render: () => {
       const cell = (k, label) => { const b = S.battery[k], p = b ? b.pct : null, on = Math.round((p || 0) / 10);
