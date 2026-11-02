@@ -170,14 +170,10 @@ def make_tray(window, session, quit_app):
         os.environ.setdefault("PYSTRAY_BACKEND", "appindicator")
     try:
         import pystray
-        from PIL import Image, ImageDraw
+        from PIL import Image
     except ImportError:
         return None
-    img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    d.rounded_rectangle((4, 4, 60, 60), 16, fill=(11, 11, 12))
-    for x, y in [(22, 22), (42, 22), (22, 42), (42, 42)]:
-        d.ellipse((x - 6, y - 6, x + 6, y + 6), fill=(255, 79, 18) if (x, y) == (42, 22) else (244, 244, 245))
+    img = Image.open(os.path.join(HERE, "ui", "tray.png"))  # logo small-size cut on its tile (docs/logo)
 
     def anc_item(label, mode):
         return pystray.MenuItem(label, lambda: session.b and session.b.set_anc(mode),
@@ -239,7 +235,8 @@ def main():
     window.events.closing += on_closing
     icon = make_tray(window, session, quit_app)
     webview.start(lambda: session.pick(sys.argv[1] if len(sys.argv) > 1 else None),
-                  gui="qt" if sys.platform == "linux" else None)  # Linux bundle ships Qt; skip the GTK probe
+                  gui="qt" if sys.platform == "linux" else None,  # Linux bundle ships Qt; skip the GTK probe
+                  icon=os.path.join(HERE, "ui", "icon.png"))  # window/taskbar icon on Linux (Windows/macOS use the exe/.app icon)
 
 
 if __name__ == "__main__":

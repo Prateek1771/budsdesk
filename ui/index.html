@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CMF Control</title>
+<title>BudsDesk</title>
+<link rel="icon" href="logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Doto:wght@700;900&family=Space+Grotesk:wght@400;500;600&family=Space+Mono:wght@400;700&family=Unbounded:wght@500;700;900&family=IBM+Plex+Mono:wght@400;500;600&family=Inter+Tight:wght@500;600;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 <link href="blob.css" rel="stylesheet">
@@ -49,7 +50,11 @@ button { font: inherit; color: inherit; }
 
 /* ── header ── */
 header { display: flex; align-items: center; gap: 10px; max-width: 1280px; margin: 0 auto 16px; }
-.brand { font: 900 22px/1 var(--dot); letter-spacing: .04em; text-transform: uppercase; margin-right: auto; }
+/* logo mark: ink follows the theme text colour, the speaker dot uses the theme accent */
+.brand { display: flex; align-items: center; gap: 10px; margin-right: auto; --logo-dot: var(--t-accent); }
+.brand .mark { width: 38px; height: 38px; flex: none; transition: transform .5s cubic-bezier(.3,1.6,.5,1); }
+.brand:hover .mark { transform: rotate(-8deg); }
+.brand > div { font: 900 22px/1 var(--dot); letter-spacing: .04em; text-transform: uppercase; }
 .brand small { display: block; font: 10px var(--mono); color: var(--mute); letter-spacing: .12em; margin-top: 6px; }
 .hbtn { all: unset; cursor: pointer; height: 38px; padding: 0 16px; border-radius: 999px; display: inline-flex; align-items: center; gap: 8px;
   font: 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; background: var(--t-light); color: var(--t-light-fg); box-shadow: var(--shadow); }
@@ -199,7 +204,7 @@ select option { background: var(--sheet); color: var(--fg); }
 </head>
 <body class="">
 <header>
-  <div class="brand"><span id="brandName">BudsDesk</span><small id="meta">[SEARCHING]</small></div>
+  <div class="brand"><svg class="mark" viewBox="20 20 216 216" aria-hidden="true"><g transform="translate(130.85 123.1) rotate(-8) scale(1.0) translate(-136.0 -130.0)"><g fill="currentColor"><path d="M76 166V50.0A16.0 16.0 0 0 1 108 50.0L118.31 134Z"/><path fill-rule="evenodd" d="M76 166A60 60 0 1 0 196 166A60 60 0 1 0 76 166ZM112 166A24 24 0 1 0 160 166A24 24 0 1 0 112 166Z"/></g><circle cx="136" cy="166" r="12" fill="var(--logo-dot, #E8131C)"/></g></svg><div><span id="brandName">BudsDesk</span><small id="meta">[SEARCHING]</small></div></div>
   <select class="hbtn" id="devPick" aria-label="Device" hidden></select>
   <div class="hbtn" id="status" data-s="disconnected"><i></i><span>offline</span></div>
   <button class="hbtn" id="editBtn" aria-pressed="false">Edit</button>

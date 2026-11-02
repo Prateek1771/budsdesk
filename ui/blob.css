@@ -31,7 +31,7 @@
   --shadow: none;
 }
 [data-theme^=blob] body { font-family: var(--sans); background-image: none; padding-bottom: 18px; }
-[data-theme^=blob] .brand { font: 800 24px/1 var(--sans); letter-spacing: -.03em; text-transform: none; }
+[data-theme^=blob] .brand > div { font: 800 24px/1 var(--sans); letter-spacing: -.03em; text-transform: none; }
 [data-theme^=blob] .brand small { font: 500 11px var(--mono); letter-spacing: .02em; text-transform: none; color: var(--mute); }
 [data-theme^=blob] .hbtn { font: 600 12px var(--sans); letter-spacing: 0; text-transform: none; background: var(--frame); color: #fff; height: 36px; border-radius: 999px; }
 [data-theme^=blob] .hbtn.on { background: var(--hi); }

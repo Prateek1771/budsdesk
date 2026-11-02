@@ -1,4 +1,9 @@
-# BudsDesk
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo/lockup-white.svg">
+    <img src="docs/logo/lockup.svg" alt="BudsDesk" height="72">
+  </picture>
+</h1>
 
 A desktop controller for **Nothing** and **CMF** earbuds and headphones, on Windows, macOS and Linux.
 
@@ -123,5 +128,7 @@ Protocol and model research builds on these community projects:
 - [SoaOaoS/something-x](https://github.com/SoaOaoS/something-x)
 
 The B172 commands were confirmed live on hardware.
+
+The logo (an earbud that is also a lowercase **b**, with its speaker in the counter) was designed with the [logo-design skill](https://github.com/kaankiziltug/logo-design-skill) (MIT). The wordmark is set in [Space Grotesk](https://github.com/floriankarsten/space-grotesk) (OFL) and converted to outlines. The source files are in [`docs/logo/`](docs/logo/), including [`concepts.png`](docs/logo/concepts.png), which shows the other directions explored.
 
 The Cells theme uses [d3-weighted-voronoi](https://github.com/Kcnarf/d3-weighted-voronoi) and [d3-voronoi-map](https://github.com/Kcnarf/d3-voronoi-map) (BSD-3) along with parts of d3 (ISC/BSD). Their licences are in [`ui/vendor/LICENSES.txt`](ui/vendor/LICENSES.txt).
