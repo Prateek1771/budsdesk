@@ -4,6 +4,10 @@ A desktop controller for **Nothing** and **CMF** earbuds and headphones, on Wind
 
 It talks to the earbuds directly over Bluetooth, using the same protocol as the Nothing X phone app. You don't need a phone or an account, and nothing goes to the cloud. Everything sits in a bento-grid dashboard you can rearrange.
 
+<p align="center"><img src="docs/demo.gif" alt="BudsDesk demo: switching ANC, EQ, Ultra Bass and Find my buds, then the Dark, Cells B/W and Cells colour themes and edit mode" width="640"></p>
+
+<p align="center"><sub>Noise control → custom EQ → Ultra Bass → Find my buds → Dark / Cells themes → resizing a tile in edit mode</sub></p>
+
 > Unofficial. BudsDesk is not affiliated with or endorsed by Nothing Technology. "Nothing" and "CMF" are their trademarks.
 
 ## Features
