@@ -203,3 +203,12 @@
 [data-theme^=blob] .grid.enter .tile { animation: cellGrow .75s var(--ease-spring) both; animation-delay: calc(var(--i) * 40ms); }
 @keyframes cellGrow { from { opacity: 0; transform: scale(.8); } }
 @container (max-height: 120px) { [data-theme^=blob] .cl { gap: 4px; } [data-theme^=blob] .cl-title { font-size: 13px; } }
+
+/* Smart Dial volume ring (#2): liquid arc = system volume; drag / wheel / arrows set it */
+.cl-vol { display: block; width: clamp(64px, 34%, 128px); height: auto; margin: 6px auto 2px; flex: none;
+  touch-action: none; cursor: grab; outline: none; border-radius: 50%; overflow: visible; }
+.cl-vol .bg { fill: none; stroke: color-mix(in srgb, var(--tf) 14%, transparent); stroke-width: 11; }
+.cl-vol .fg { fill: none; stroke: var(--hi); stroke-width: 11; stroke-linecap: round;
+  transform: rotate(-90deg); transform-box: view-box; transform-origin: 50% 50%; transition: stroke-dasharray .35s var(--ease); }
+.cl-vol.drag .fg { transition: none; }
+.cl-vol .vtx { font: 800 24px var(--sans); letter-spacing: -.03em; fill: currentColor; }

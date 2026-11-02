@@ -156,7 +156,13 @@ header { display: flex; align-items: center; gap: 10px; max-width: 1280px; margi
 .blocks button.on { background: var(--tf); }
 
 /* gesture rows */
-.rows { overflow: auto; margin-top: 10px; flex: 1; min-height: 0; scrollbar-width: thin; }
+.rows { overflow: auto; margin-top: 10px; flex: 1; min-height: 0; }
+/* invisible scrollbars (#2): no grey line; a faint thumb appears only while hovering the scroll area */
+* { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+*:hover { scrollbar-color: color-mix(in srgb, currentColor 22%, transparent) transparent; }
+::-webkit-scrollbar { width: 6px; height: 6px; background: transparent; }
+::-webkit-scrollbar-thumb { background: transparent; border-radius: 6px; }
+*:hover::-webkit-scrollbar-thumb { background: color-mix(in srgb, currentColor 22%, transparent); }
 .r { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid color-mix(in srgb, var(--tf) 12%, transparent); }
 .r:first-child { border-top: 0; }
 .r .t { font-size: 13px; font-weight: 500; }
@@ -167,7 +173,14 @@ select option { background: var(--sheet); color: var(--fg); }
 
 /* dial gauge */
 .dialwrap { display: grid; grid-template-columns: clamp(90px, 34cqw, 170px) 1fr; gap: 16px; flex: 1; min-height: 0; margin-top: 8px; }
-.gauge { width: 100%; height: auto; align-self: center; }
+.gauge { width: 100%; height: auto; align-self: center; touch-action: none; cursor: grab; outline: none; border-radius: 50%; }
+.gauge.drag, .cl-vol.drag { cursor: grabbing; }
+.gauge:focus-visible, .cl-vol:focus-visible { box-shadow: 0 0 0 2px var(--t-accent); }
+.gauge .tk { stroke: currentColor; stroke-opacity: .3; transition: stroke .25s var(--ease), stroke-opacity .25s var(--ease); }
+.gauge .tk.on { stroke: var(--t-accent); stroke-opacity: 1; }
+.gauge .knob { transform-box: view-box; transform-origin: 50% 50%; transition: transform .35s var(--ease); }
+.gauge.drag .knob, .gauge.drag .tk { transition: none; }
+@media (prefers-reduced-motion: reduce) { .gauge .knob, .gauge .tk, .cl-vol .fg { transition: none; } }
 @container (max-width: 270px) { .dialwrap { grid-template-columns: 1fr; } .gauge { display: none; } }
 
 /* ── edit mode ── */
@@ -336,16 +349,63 @@ function gestureRows(device) {
       <select data-k="${key}" aria-label="${META.types[g.type]}">${opts.map(a => `<option value="${a}" ${a === g.action ? "selected" : ""}>${META.actions[a] || "Action " + a}</option>`).join("")}</select></div>`;
   }).join("");
 }
+/* ── Smart Dial volume (#2): the gauge mirrors the system volume; drag / wheel / arrows set it ── */
+let VOL = null; // {v: 0..1, m: muted} from api.volume() + the backend watcher (volTick)
+const volText = () => !VOL ? "--" : VOL.m ? "MUTE" : String(Math.round(VOL.v * 100));
+const volLit = () => (VOL && !VOL.m ? Math.round(VOL.v * 48) : 0);
 function gauge() {
-  const rot = S.gestures.find(g => g.device === 4 && g.type === 10), on = rot && rot.action === 23;
+  const rot = S.gestures.find(g => g.device === 4 && g.type === 10), dialVol = rot && rot.action === 23, lit = volLit();
   let ticks = "";
   for (let i = 0; i < 48; i++) {
-    const a = (i / 48) * Math.PI * 2 - Math.PI / 2, r1 = i % 4 ? 44 : 41, lit = on && i > 30 && i < 46;
-    ticks += `<line x1="${50 + Math.cos(a) * r1}" y1="${50 + Math.sin(a) * r1}" x2="${50 + Math.cos(a) * 47}" y2="${50 + Math.sin(a) * 47}" stroke="${lit ? "var(--t-accent)" : "currentColor"}" stroke-opacity="${lit ? 1 : .35}" stroke-width="${i % 4 ? 1 : 1.6}"/>`;
+    const a = (i / 48) * Math.PI * 2 - Math.PI / 2, r1 = i % 4 ? 44 : 41;
+    ticks += `<line class="tk ${i < lit ? "on" : ""}" x1="${50 + Math.cos(a) * r1}" y1="${50 + Math.sin(a) * r1}" x2="${50 + Math.cos(a) * 47}" y2="${50 + Math.sin(a) * 47}" stroke-width="${i % 4 ? 1 : 1.6}"/>`;
   }
-  return `<svg class="gauge" viewBox="0 0 100 100" aria-hidden="true">${ticks}<circle cx="50" cy="50" r="30" fill="none" stroke="currentColor" stroke-opacity=".2"/>
-    <circle cx="50" cy="26" r="2.5" fill="var(--t-accent)"/><text x="50" y="49" text-anchor="middle" font-family="Doto" font-weight="900" font-size="13" fill="currentColor">${on ? "VOL" : "--"}</text>
-    <text x="50" y="61" text-anchor="middle" font-family="Space Mono" font-size="5.5" fill="currentColor" fill-opacity=".6" letter-spacing=".6">ROTATE</text></svg>`;
+  return `<svg class="gauge vol" viewBox="0 0 100 100" role="slider" tabindex="0" aria-label="System volume" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${VOL ? Math.round(VOL.v * 100) : 0}">${ticks}
+    <circle cx="50" cy="50" r="30" fill="none" stroke="currentColor" stroke-opacity=".2"/>
+    <g class="knob" style="transform: rotate(${VOL ? VOL.v * 360 : 0}deg)"><circle cx="50" cy="26" r="2.5" fill="var(--t-accent)"/></g>
+    <text class="vtx" x="50" y="50" text-anchor="middle" font-family="Doto" font-weight="900" font-size="15" fill="currentColor">${volText()}</text>
+    <text x="50" y="61" text-anchor="middle" font-family="Space Mono" font-size="5.2" fill="currentColor" fill-opacity=".6" letter-spacing=".6">${dialVol ? "ROTATE DIAL" : "VOLUME"}</text></svg>`;
+}
+// Cells skin: a liquid ring instead of ticks
+function volRing() {
+  const pct = VOL && !VOL.m ? VOL.v * 100 : 0;
+  return `<svg class="cl-vol vol" viewBox="0 0 100 100" role="slider" tabindex="0" aria-label="System volume" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pct)}">
+    <circle cx="50" cy="50" r="38" class="bg"/><circle cx="50" cy="50" r="38" class="fg" pathLength="100" stroke-dasharray="${pct.toFixed(1)} 100"/>
+    <text class="vtx" x="50" y="57" text-anchor="middle">${volText()}</text></svg>`;
+}
+// Patch only the volume widgets: never re-render (open gesture <select>s stay untouched)
+function volTick(v, m) {
+  VOL = v == null ? null : { v: Math.max(0, Math.min(1, v)), m: !!m };
+  const lit = volLit(), txt = volText(), now = VOL ? Math.round(VOL.v * 100) : 0;
+  document.querySelectorAll(".gauge.vol").forEach(g => {
+    g.querySelectorAll(".tk").forEach((t, i) => t.classList.toggle("on", i < lit));
+    g.querySelector(".knob").style.transform = `rotate(${VOL ? VOL.v * 360 : 0}deg)`;
+  });
+  document.querySelectorAll(".cl-vol").forEach(g => g.querySelector(".fg").setAttribute("stroke-dasharray", `${VOL && !VOL.m ? (VOL.v * 100).toFixed(1) : 0} 100`));
+  document.querySelectorAll(".vol").forEach(g => { g.querySelector(".vtx").textContent = txt; g.setAttribute("aria-valuenow", now); });
+}
+window.volTick = volTick;
+let volSendT = 0;
+function volSet(v) {
+  v = Math.max(0, Math.min(1, v));
+  volTick(v, false); // optimistic; the backend watcher confirms
+  const t = performance.now();
+  if (t - volSendT > 33) { volSendT = t; api().set_volume(v); } else { clearTimeout(volSet.t); volSet.t = setTimeout(() => api().set_volume(v), 40); }
+}
+function volDrag(e) {
+  const el = e.target.closest(".vol"); if (!el || !META.audio) return false;
+  e.preventDefault(); el.setPointerCapture(e.pointerId); el.classList.add("drag");
+  let prev = VOL ? VOL.v : 0;
+  const move = ev => {
+    const r = el.getBoundingClientRect(), ang = Math.atan2(ev.clientX - (r.left + r.width / 2), (r.top + r.height / 2) - ev.clientY);
+    let v = ((ang + Math.PI * 2) % (Math.PI * 2)) / (Math.PI * 2);
+    if (Math.abs(v - prev) > 0.5) v = prev > 0.5 ? 1 : 0; // don't wrap 100 -> 0 across the top
+    prev = v; volSet(v);
+  };
+  move(e);
+  el.onpointermove = move;
+  el.onpointerup = el.onpointercancel = () => { el.onpointermove = null; el.classList.remove("drag"); stamp(el.closest(".tile")); };
+  return true;
 }
 
 /* ── CELLS skin renderers (organic Voronoi theme, B/W + colour) ── */
@@ -384,7 +444,7 @@ Object.assign(TILES.sound, { blob: t => `<div class="cl"><div class="cl-title">S
 Object.assign(TILES.bass, { blob: () => `<div class="cl"><div class="cl-title">Ultra Bass</div><div class="cl-bass">
   <button class="orbb ${S.bass.on ? "on" : ""}" style="--lvl:${S.bass.level}" data-act="bass">${S.bass.on ? "On" : "Off"}</button>
   <div class="lv">${range(F().bass_levels).map(n => `<button data-act="basslvl" data-v="${n}" class="${n <= S.bass.level ? "on" : ""}" aria-label="Level ${n}"></button>`).join("")}</div></div></div>` });
-Object.assign(TILES.dial, { blob: () => `<div class="cl" style="justify-content:flex-start"><div class="cl-title">Smart Dial</div><div class="rows">${gestureRows(4)}</div></div>` });
+Object.assign(TILES.dial, { blob: () => `<div class="cl" style="justify-content:flex-start"><div class="cl-title">Smart Dial</div>${volRing()}<div class="rows">${gestureRows(4)}</div></div>` });
 Object.assign(TILES.gestures, { blob: () => `<div class="cl" style="justify-content:flex-start"><div class="cl-title">Gestures</div>${F().unit === "stereo" ? "" : gseg([[2, "Left"], [3, "Right"]], gTab, "gtab")}<div class="rows">${gestureRows(gDev())}</div></div>` });
 Object.assign(TILES.find, { blob: () => `<div class="cl"><div class="cl-title">Find my buds</div><div class="cl-find">${[["left", "L"], ["right", "R"], ["both", "L+R"]].map(([v, l]) =>
     `<button class="rip ${ringing === v ? "ringing" : ""}" data-act="ring" data-v="${v}">${l}</button>`).join("")}<button class="rip stop" data-act="ring" data-v="off">Stop</button></div></div>` });
@@ -560,6 +620,7 @@ async function loadDevices() {
 }
 async function init() {
   [META, P] = await Promise.all([api().meta(), api().prefs()]);
+  if (META.audio) api().volume().then(v => v && volTick(v.v, v.m));
   P = { ...DEFAULT_PREFS(), ...(P || {}) };
   if (!["light", "dark", "blob", "blobc"].includes(P.theme)) P.theme = "dark"; // e.g. the removed "retro" theme
   P.order = [...P.order.filter(id => TILES[id]), ...Object.keys(TILES).filter(id => !P.order.includes(id))];
@@ -598,7 +659,17 @@ async function init() {
     const [d, b, t] = e.target.dataset.k.split("-").map(Number);
     api().gesture(d, b, t, +e.target.value); e.target.blur(); stamp(e.target.closest(".tile"));
   });
-  grid.addEventListener("pointerdown", e => { if (!document.body.classList.contains("editing") && S && S.status === "connected") eqDrag(e); });
+  grid.addEventListener("pointerdown", e => {
+    if (document.body.classList.contains("editing")) return;
+    if (volDrag(e)) return; // system volume works with or without the buds connected
+    if (S && S.status === "connected") eqDrag(e);
+  });
+  grid.addEventListener("wheel", e => { const g = e.target.closest(".vol"); if (!g || !META.audio || !VOL) return; e.preventDefault(); volSet(VOL.v - Math.sign(e.deltaY) * 0.02); }, { passive: false });
+  grid.addEventListener("keydown", e => {
+    const g = e.target.closest && e.target.closest(".vol"); if (!g || !META.audio || !VOL) return;
+    const d = { ArrowUp: .02, ArrowRight: .02, ArrowDown: -.02, ArrowLeft: -.02, PageUp: .1, PageDown: -.1 }[e.key];
+    if (d) { e.preventDefault(); volSet(VOL.v + d); }
+  });
 
   // drag-to-reorder
   let dragId = null;

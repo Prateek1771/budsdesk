@@ -47,6 +47,7 @@ jobs:
           python models.py
           python buds.py
           python platform_bt.py
+          python audio.py
 
       - name: Build
         run: python -m PyInstaller --noconfirm budsdesk.spec

@@ -17,6 +17,7 @@ if sys.platform == "linux":
 
 import webview
 
+import audio
 import buds
 import platform_bt
 
@@ -92,8 +93,8 @@ class Session:
 
 
 class Api:
-    def __init__(self, session: Session):
-        self._s = session
+    def __init__(self, session: Session, volume: "audio.Volume"):
+        self._s, self._vol = session, volume
 
     def _b(self):
         return self._s.b
@@ -107,7 +108,15 @@ class Api:
 
     def meta(self):
         return {"types": buds.GESTURE_TYPES, "actions": buds.ACTIONS, "generic_actions": buds.models.GENERIC_ACTIONS,
-                "platform": sys.platform}
+                "platform": sys.platform, "audio": self._vol.available}
+
+    # system volume (#2): the Smart Dial gauge mirrors it, dragging the gauge sets it
+    def volume(self):
+        v = self._vol.get()
+        return {"v": v[0], "m": v[1]} if v else None
+
+    def set_volume(self, level):
+        self._vol.set(level)
 
     def state(self):
         return self._s.state()
@@ -212,7 +221,8 @@ def main():
 
     session = Session(on_change)
     session.scan()
-    window = webview.create_window(APP, os.path.join(HERE, "ui", "index.html"), js_api=Api(session),
+    volume = audio.Volume()
+    window = webview.create_window(APP, os.path.join(HERE, "ui", "index.html"), js_api=Api(session, volume),
                                    width=1060, height=860, min_size=(420, 560), background_color="#e7e8ec")
 
     def quit_app():
@@ -233,6 +243,14 @@ def main():
         return False
 
     window.events.closing += on_closing
+
+    def on_volume(level, muted):  # watcher thread; pushes only on change
+        if window and level is not None:
+            try:
+                window.evaluate_js(f"window.volTick && volTick({level:.4f}, {str(bool(muted)).lower()})")
+            except Exception:
+                pass
+    volume.watch(on_volume)
     icon = make_tray(window, session, quit_app)
     webview.start(lambda: session.pick(sys.argv[1] if len(sys.argv) > 1 else None),
                   **({"gui": "qt", "icon": os.path.join(HERE, "ui", "icon.png")} if sys.platform == "linux" else {}))
