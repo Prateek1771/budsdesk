@@ -216,3 +216,6 @@
 /* Waves (#3): filled translucent waves across the cell */
 .cl-waves { gap: 4px; }
 [data-theme^=blob] .tile canvas.waves { flex: none; width: 100%; height: 48%; margin: 2px 0; --wave-accent: var(--hi); }
+
+/* device hero (#4): per-bud state + beat pulse on a wrapping <g>, so the right path's mirror transform is untouched */
+.cl-buds .bud { transform-box: fill-box; transform-origin: center; }

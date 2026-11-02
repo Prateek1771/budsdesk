@@ -135,6 +135,15 @@ header { display: flex; align-items: center; gap: 10px; max-width: 1280px; margi
 /* hero */
 .hero .art { flex: 1; display: grid; place-items: center; min-height: 0; }
 .hero .art svg { width: min(78%, 240px); height: auto; max-height: 100%; }
+/* device hero (#4): each bud reflects its state; --beat (0..1) is written per frame while audio plays */
+.hero .art.pair { display: flex; justify-content: center; align-items: center; gap: 6%; }
+.hero .art.pair .bud { display: grid; place-items: center; width: 36%; max-width: 116px; }
+.hero .art.pair .bud.u { width: min(78%, 240px); max-width: none; }
+.hero .art.pair .bud svg { width: 100%; }
+.bud { transform: scale(calc(var(--sz, 1) * (1 + var(--beat, 0) * .07))); transition: opacity .4s var(--ease), filter .4s var(--ease), transform .12s ease-out; }
+.bud.off { opacity: .38; filter: grayscale(1); --sz: .9; }
+.bud.gone { opacity: .16; filter: grayscale(1); --sz: .85; }
+@media (prefers-reduced-motion: reduce) { .bud { transform: scale(var(--sz, 1)); transition: none; } }
 .hero .foot { display: flex; justify-content: space-between; align-items: end; gap: 8px; }
 @container (max-height: 200px) { .hero .art { display: none; } .hero .foot { margin-top: auto; } }
 
@@ -253,6 +262,8 @@ let S = null, META = null, P = null, gTab = 2;
 /* ── dot-matrix icons ── */
 const ICONS = {
   buds: ["..####.....####..", ".######...######.", "########.########", "########.########", ".#######.#######.", "..#####...#####..", "...###.....###...", "...###.....###...", "...###.....###...", "...###.....###...", "....#.......#...."],
+  budL: ["..####..", ".######.", "########", "########", ".#######", "..#####.", "...###..", "...###..", "...###..", "...###..", "....#..."],
+  budR: ["..####..", ".######.", "########", "########", "#######.", ".#####..", "..###...", "..###...", "..###...", "..###...", "...#...."],
   anc: ["...#...", ".#.#.#.", "##.#.##", "##.#.##", "##.#.##", ".#.#.#.", "...#..."],
   trans: [".###.", "#...#", "#.#.#", "#..#.", ".#...", ".#...", "#...."],
   lag: ["...##", "..##.", ".##..", "#####", "..##.", ".##..", "##..."],
@@ -277,14 +288,28 @@ const customOn = () => F().custom_eq && S.listening === F().custom_index;
 const BATS = () => F().unit === "stereo" ? [["unit", "Battery"]] : [["left", "Left"], ["right", "Right"], ["case", "Case"]];
 const modelName = () => (S && S.model && S.model.base !== "generic" ? S.model.name : S && S.status === "nodevice" ? "No device" : "Nothing device");
 const range = n => Array.from({ length: n }, (_, i) => i + 1);
+/* connected-device hero (#4): what is connected, which bud is in use */
+const deviceType = () => F().unit === "stereo" ? (/neckband/i.test(S.model && S.model.name || "") ? "Neckband" : "Headphones") : "Earbuds";
+function budState(side) { // on = worn, off = reporting but not worn (e.g. in the case), gone = not reporting
+  if (!S || S.status !== "connected") return "gone";
+  if (side === "unit") return "on";
+  return S.wear[side] ? "on" : S.battery[side] ? "off" : "gone";
+}
+function wearText() {
+  if (!S || S.status !== "connected") return S && S.status === "nodevice" ? "No device" : "Not connected";
+  if (F().unit === "stereo") return "Connected";
+  const l = S.wear.left, r = S.wear.right;
+  return l && r ? "Both in" : l ? "Left in" : r ? "Right in" : S.battery.left || S.battery.right ? "In case" : "Idle";
+}
 const pressed = (cond) => `aria-pressed="${!!cond}"`;
 const TILES = {
   hero: { name: "Buds", w: 2, h: 2, c: "light", s: "soft", render: () => `
-      <div class="lbl"><span>${modelName()}</span><span>${S.firmware ? "FW " + S.firmware : ""}</span></div>
-      <div class="art dots">${dots("buds")}</div>
+      <div class="lbl"><span>${deviceType()} · ${modelName()}</span><span>${S.firmware ? "FW " + S.firmware : ""}</span></div>
+      <div class="art pair">${F().unit === "stereo" ? `<span class="bud u ${budState("unit")}">${dots("buds")}</span>`
+        : `<span class="bud bl ${budState("left")}">${dots("budL")}</span><span class="bud br ${budState("right")}">${dots("budR")}</span>`}</div>
       <div class="foot"><div><div class="title">${S.status === "connected" ? "Connected" : S.status === "unavailable" ? "Busy" : S.status === "nodevice" ? "No device" : "Searching"}</div>
         <div class="lbl" style="margin-top:4px">${S.serial ? "SN " + S.serial.slice(-6) : "[" + S.status + "]"}</div></div>
-        <div class="lbl">${S.wear.left || S.wear.right ? "IN EAR" : "IDLE"}</div></div>` },
+        <div class="lbl">${wearText().toUpperCase()}</div></div>` },
   battery: { name: "Battery", w: 2, h: 1, c: "dark", s: "soft", render: () => {
       const cell = (k, label) => { const b = S.battery[k], p = b ? b.pct : null, on = Math.round((p || 0) / 10);
         return `<div><div class="n">${p === null ? "--" : p}<small>${p === null ? "" : "%"}</small></div>
@@ -421,9 +446,9 @@ function gseg(opts, cur, act, cls = "") {
 }
 const quickCell = (label, on, state) => () => `<div class="cl"><div class="cl-title">${label}</div>
   <span class="ltog ${on() ? "on" : ""}"><span class="goo"><i class="drip"></i><i class="th"></i></span></span><div class="cl-sub">${state()}</div></div>`;
-Object.assign(TILES.hero, { blob: () => `<div class="cl"><svg class="cl-buds ${S.status === "connected" ? "live" : ""}" viewBox="0 0 200 120" aria-hidden="true"><path class="l" d="${BUD}"/><path class="r" d="${BUD}"/></svg>
+Object.assign(TILES.hero, { blob: () => `<div class="cl"><svg class="cl-buds ${S.status === "connected" ? "live" : ""}" viewBox="0 0 200 120" aria-hidden="true"><g class="bud bl ${budState(F().unit === "stereo" ? "unit" : "left")}"><path class="l" d="${BUD}"/></g><g class="bud br ${budState(F().unit === "stereo" ? "unit" : "right")}"><path class="r" d="${BUD}"/></g></svg>
   <div class="cl-title">${S.status === "connected" ? "Connected" : S.status === "unavailable" ? "Busy" : S.status === "nodevice" ? "No device" : "Searching"}</div>
-  <div class="cl-sub">${S.wear.left || S.wear.right ? "in ear" : "idle"} · fw ${S.firmware || "–"}</div></div>` });
+  <div class="cl-sub">${deviceType()} · ${wearText().toLowerCase()}${S.firmware ? " · fw " + S.firmware : ""}</div></div>` });
 Object.assign(TILES.battery, { blob: () => `<div class="cl"><div class="cl-bat">${BATS().map(([k, l]) => {
     const b = S.battery[k], p = b ? b.pct : 0;
     return `<div class="liq ${b && p <= 20 ? "low" : ""} ${b && b.charging ? "chg" : ""}" style="--stripe:url(#st-${k})"><svg viewBox="0 0 60 70" aria-hidden="true"><defs><clipPath id="tank-${k}"><path d="${TANK}"/></clipPath></defs>
@@ -507,23 +532,33 @@ const Waves = (() => {
     poll(now);
     const t = now / 1000;
     let any = false;
-    visible.forEach(tile => { if (tile.isConnected) { draw(tile, t, LV); any = true; } });
+    visible.forEach(tile => { if (!tile.isConnected) return; any = true; if (tile.classList.contains("hero")) heroBeat(tile); else draw(tile, t, LV); });
     const on = Math.max(LV[0], LV[1]) > .02;
     if (on !== WAVE_ON) { WAVE_ON = on; document.querySelectorAll(".wlbl").forEach(e => e.textContent = waveLabel()); }
     if (any) raf = requestAnimationFrame(loop);
   }
+  // beat pulse (#4): kick on onsets (level jumping above its own recent average), not on loudness — compressed
+  // music sits at a steady high level and would look frozen. pulse is written as --beat on the hero only.
+  let avg = 0, pulse = 0;
+  function beatStep(lv) {
+    const m = (lv[0] + lv[1]) / 2;
+    avg += (m - avg) * .05;
+    pulse = Math.max(pulse * .85, Math.min(1, Math.max(0, m - avg * 1.08) * 4));
+    return pulse;
+  }
+  function heroBeat(tile) { tile.style.setProperty("--beat", (META.levels ? beatStep(LV) : 0).toFixed(3)); }
   function kick() {
-    if (reducedMotion) { visible.forEach(tile => draw(tile, 0, [0, 0])); return; } // one calm static frame
+    if (reducedMotion) { visible.forEach(tile => tile.classList.contains("hero") || draw(tile, 0, [0, 0])); return; } // one calm static frame
     if (!raf && !document.hidden && visible.size) raf = requestAnimationFrame(loop);
   }
   function attach() { // after every build(): tiles are new elements
     if (io) io.disconnect();
     visible.clear();
     io = new IntersectionObserver(es => { es.forEach(e => e.isIntersecting ? visible.add(e.target) : visible.delete(e.target)); kick(); });
-    document.querySelectorAll(".tile.waves").forEach(el => io.observe(el));
+    document.querySelectorAll(".tile.waves, .tile.hero").forEach(el => io.observe(el));
   }
   document.addEventListener("visibilitychange", kick);
-  return { attach, frame: draw };
+  return { attach, frame: draw, beatStep };
 })();
 window.Waves = Waves;
 
