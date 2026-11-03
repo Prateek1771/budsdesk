@@ -221,5 +221,7 @@
 .cl-buds .bud { transform-box: fill-box; transform-origin: center; }
 
 /* media tile (#5): the stage fills the cell; the cell's clip-path shapes it. Cog sits inside the shape, not a bbox corner. */
+[data-theme^=blob] .tile.media .body { left: 0; top: 0; width: 100%; height: 100%; }
 [data-theme^=blob] .tile.media .m-stage { border-radius: 0; }
-[data-theme^=blob] .tile.media .m-cfg { right: auto; left: 50%; bottom: 16%; transform: translateX(-50%); }
+[data-theme^=blob] .tile.media .m-empty { inset: auto; left: var(--bx); top: var(--by); width: var(--bw); height: var(--bh); }
+[data-theme^=blob] .tile.media .m-cfg { right: auto; bottom: auto; left: calc(var(--bx) + var(--bw) / 2 - 16px); top: calc(var(--by) + var(--bh) - 40px); transform: none; }
