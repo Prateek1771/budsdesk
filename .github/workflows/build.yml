@@ -50,6 +50,7 @@ jobs:
           python audio.py
           python localserver.py
           python nowplaying.py
+          python focus.py
 
       - name: Build
         run: python -m PyInstaller --noconfirm budsdesk.spec

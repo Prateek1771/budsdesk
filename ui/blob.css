@@ -241,4 +241,12 @@
 [data-theme^=blob] .tile.np .np-note { width: 44px; height: 44px; display: grid; place-items: center; opacity: .6; }
 [data-theme^=blob] .tile.np .np-note svg { width: 100%; height: 100%; }
 @container (max-height: 150px) { [data-theme^=blob] .tile.np .np-tm, [data-theme^=blob] .tile.np .np-app { display: none; } }
+/* focus timer (#7): ring, round dots and controls stacked inside the content box */
+[data-theme^=blob] .tile.focus .cl-fo { gap: 8px; }
+[data-theme^=blob] .tile.focus .fo-ring { height: min(100cqh - 80px, 88cqw); }
+[data-theme^=blob] .tile.focus .fo-dots { justify-content: center; }
+[data-theme^=blob] .tile.focus .fo-ctl { justify-content: center; }
+[data-theme^=blob] .tile.focus .fo-ctl .b:not(.pp) { background: color-mix(in srgb, var(--tf) 12%, transparent); }
+[data-theme^=blob] .tile.focus .fo-cfg { right: 0; top: 0; bottom: auto; }
+@container (max-height: 150px) { [data-theme^=blob] .tile.focus .fo-dots { display: none; } [data-theme^=blob] .tile.focus .fo-ring { height: min(100cqh - 52px, 88cqw); } }
 [data-theme^=blob] .tile.media .m-cfg { right: auto; bottom: auto; left: calc(var(--bx) + var(--bw) / 2 - 16px); top: calc(var(--by) + var(--bh) - 40px); transform: none; }

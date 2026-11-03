@@ -19,6 +19,7 @@ import webview
 
 import audio
 import buds
+import focus as focuslib
 import localserver
 import nowplaying
 import platform_bt
@@ -45,6 +46,7 @@ def prefs_dir() -> str:
 
 PREFS_DIR = prefs_dir()
 LAYOUT, DEVICE = os.path.join(PREFS_DIR, "layout.json"), os.path.join(PREFS_DIR, "device.json")
+FOCUS = os.path.join(PREFS_DIR, "focus.json")
 MEDIA_DIR = os.path.join(PREFS_DIR, "media")  # user images/videos for the media tile (#5), served at /media/
 MEDIA_TYPES = {"image": ("Images (*.jpg;*.jpeg;*.png;*.gif;*.webp;*.avif)",), "video": ("Videos (*.mp4;*.webm;*.mov;*.m4v)",)}
 
@@ -97,8 +99,8 @@ class Session:
 
 
 class Api:
-    def __init__(self, session: Session, volume: "audio.Volume", meter: "audio.Meter", np: "nowplaying.NowPlaying"):
-        self._s, self._vol, self._meter, self._np = session, volume, meter, np
+    def __init__(self, session: Session, volume: "audio.Volume", meter: "audio.Meter", np: "nowplaying.NowPlaying", focus: "focuslib.Focus"):
+        self._s, self._vol, self._meter, self._np, self._focus = session, volume, meter, np, focus
         self._window = None  # set after create_window (needed for native file dialogs)
 
     def _b(self):
@@ -122,6 +124,18 @@ class Api:
 
     def np_cmd(self, name):
         self._np.cmd(str(name))  # NowPlaying.cmd ignores anything outside nowplaying.CMDS
+
+    # focus timer (#7): the timer runs here (survives the window hidden to the tray); the tile only renders it
+    def focus_state(self):
+        return self._focus.state()
+
+    def focus_cmd(self, name):
+        return self._focus.cmd(str(name)) if name in focuslib.CMDS else self._focus.state()
+
+    def focus_cfg(self, patch):
+        st = self._focus.set_cfg(patch if isinstance(patch, dict) else {})
+        _write(FOCUS, st["cfg"])
+        return st
 
     # system volume (#2): the Smart Dial gauge mirrors it, dragging the gauge sets it
     def volume(self):
@@ -264,7 +278,37 @@ def main():
     # UI over http://127.0.0.1:<random> (not file://): YouTube embeds need a referrer (#5) and /media/ serves user files
     server = localserver.LocalServer(os.path.join(HERE, "ui"), MEDIA_DIR)
     np = nowplaying.NowPlaying()
-    api = Api(session, volume, meter, np)
+    saved = {"anc": None, "music": False}  # what the focus automations changed, so a break can put it back
+
+    def on_focus_phase(old, new):
+        b, cfg = session.b, focus.cfg
+        live = b and b.state["status"] == "connected"
+        if new == "focus":
+            if cfg["anc"] and live and b.features["anc"] and saved["anc"] is None:
+                saved["anc"] = b.state["anc"]
+                b.set_anc("high")
+            if saved["music"]:  # resume only what we paused
+                saved["music"] = False
+                np.cmd("toggle")
+        else:  # a break, or reset to idle
+            if saved["anc"] is not None:
+                if live:
+                    b.set_anc(saved["anc"])
+                saved["anc"] = None
+            if new != "idle" and cfg["music"]:
+                cur = np.get()
+                if cur and cur["playing"]:
+                    np.cmd("toggle")
+                    saved["music"] = True
+
+    def on_focus(state):  # timer thread / api thread
+        if window:
+            try:
+                window.evaluate_js(f"window.focusTick && focusTick({json.dumps(state)})")
+            except Exception:
+                pass
+    focus = focuslib.Focus(on_focus, on_focus_phase, _read(FOCUS)).start()
+    api = Api(session, volume, meter, np, focus)
     window = webview.create_window(APP, server.url + "/index.html", js_api=api,
                                    width=1060, height=860, min_size=(420, 560), background_color="#e7e8ec")
     api._window = window
