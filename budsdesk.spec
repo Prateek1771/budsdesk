@@ -3,7 +3,7 @@ import os
 import re
 import sys
 
-a = Analysis(["app.py"], datas=[("ui", "ui")], hiddenimports=["models", "platform_bt", "audio", "localserver"] + (["pycaw", "pycaw.pycaw", "comtypes", "comtypes.stream"] if sys.platform == "win32" else ["pulsectl"] if sys.platform == "linux" else []))
+a = Analysis(["app.py"], datas=[("ui", "ui")], hiddenimports=["models", "platform_bt", "audio", "localserver", "nowplaying"] + (["pycaw", "pycaw.pycaw", "comtypes", "comtypes.stream", "winrt.runtime", "winrt.windows.foundation", "winrt.windows.foundation.collections", "winrt.windows.media.control", "winrt.windows.storage.streams"] if sys.platform == "win32" else ["pulsectl"] if sys.platform == "linux" else []))
 
 if sys.platform == "linux":
     # Libraries that must come from the user's system, never from the (older) build machine: they load the

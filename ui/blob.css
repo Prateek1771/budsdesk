@@ -224,4 +224,21 @@
 [data-theme^=blob] .tile.media .body { left: 0; top: 0; width: 100%; height: 100%; }
 [data-theme^=blob] .tile.media .m-stage { border-radius: 0; }
 [data-theme^=blob] .tile.media .m-empty { inset: auto; left: var(--bx); top: var(--by); width: var(--bw); height: var(--bh); }
+/* now playing (#6): blurred cover art fills the cell; text + controls stay in the inscribed content box */
+[data-theme^=blob] .tile.np .body { left: 0; top: 0; width: 100%; height: 100%; }
+[data-theme^=blob] .tile.np .np-bg { position: absolute; inset: 0; overflow: hidden; background: #141416; }
+[data-theme^=blob] .tile.np .np-bg img { width: 100%; height: 100%; object-fit: cover; filter: blur(16px) saturate(1.25) brightness(.5); transform: scale(1.25); }
+[data-theme^=blob] .tile.np .cl-np { position: absolute; left: var(--bx); top: var(--by); width: var(--bw); height: var(--bh); gap: 4px; }
+[data-theme^=blob] .tile.np .np-bg ~ .cl-np { --tf: #fff; --bg: #141416; color: #fff; }
+[data-theme^=blob] .tile.np .cl-np > * { max-width: 100%; }
+[data-theme^=blob] .tile.np .np-t { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-theme^=blob] .tile.np .np-a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-theme^=blob] .tile.np .np-bar { width: 78%; margin-top: 6px; }
+[data-theme^=blob] .tile.np .np-tm { width: 78%; }
+[data-theme^=blob] .tile.np .np-ctl { justify-content: center; margin-top: 4px; }
+[data-theme^=blob] .tile.np .np-ctl .b { background: rgba(255,255,255,.14); color: #fff; }
+[data-theme^=blob] .tile.np .np-ctl .pp { background: #fff; color: #141416; }
+[data-theme^=blob] .tile.np .np-note { width: 44px; height: 44px; display: grid; place-items: center; opacity: .6; }
+[data-theme^=blob] .tile.np .np-note svg { width: 100%; height: 100%; }
+@container (max-height: 150px) { [data-theme^=blob] .tile.np .np-tm, [data-theme^=blob] .tile.np .np-app { display: none; } }
 [data-theme^=blob] .tile.media .m-cfg { right: auto; bottom: auto; left: calc(var(--bx) + var(--bw) / 2 - 16px); top: calc(var(--by) + var(--bh) - 40px); transform: none; }

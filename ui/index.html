@@ -217,6 +217,32 @@ select option { background: var(--sheet); color: var(--fg); }
 .m-add { display: flex; gap: 6px; }
 .m-add input { flex: 1; min-width: 0; height: 34px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--tf) 18%, transparent); background: transparent;
   color: inherit; padding: 0 10px; font: 12px var(--sans); }
+/* now playing (#6) */
+.np { flex: 1; min-height: 0; min-width: 0; width: 100%; display: flex; gap: 16px; align-items: center; }
+.np-art { flex: none; width: min(40cqw, 100cqh); aspect-ratio: 1; border-radius: 14px; overflow: hidden; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--tf) 9%, transparent); color: color-mix(in srgb, var(--tf) 45%, transparent); }
+.np-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.np-art svg, .np-note svg { width: 38%; height: 38%; fill: currentColor; }
+.np-main { flex: 1; min-width: 0; align-self: stretch; display: flex; flex-direction: column; gap: 3px; }
+.np-t { margin-top: auto; font: 600 clamp(14px, 5cqw, 20px)/1.25 var(--sans); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.np-a { font: 11px/1.3 var(--mono); opacity: .6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.np.idle .np-t { margin-top: auto; } .np.idle .np-a { margin-bottom: auto; white-space: normal; }
+.np-app { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.np-bar { height: 3px; border-radius: 2px; background: color-mix(in srgb, var(--tf) 18%, transparent); margin-top: 8px; overflow: hidden; flex: none; }
+.np-bar i { display: block; height: 100%; background: var(--t-accent); transition: width 1s linear; }
+.np-tm { display: flex; justify-content: space-between; font: 10px var(--mono); opacity: .55; }
+.np-ctl { display: flex; gap: 6px; align-items: center; margin-top: 6px; flex: none; }
+.np-ctl .b { width: 36px; height: 36px; padding: 0; display: grid; place-items: center; border-radius: 50%; }
+.np-ctl .b svg { width: 16px; height: 16px; fill: currentColor; }
+.np-ctl .b.seek svg { width: 20px; height: 20px; }
+.np-ctl .b:disabled { opacity: .3; pointer-events: none; }
+.np-ctl .pp, .np-ctl .pp:hover { width: 42px; height: 42px; background: var(--tf); color: var(--bg); }
+@container (max-width: 240px) { .np-art { display: none; } .np-ctl { justify-content: center; } } /* 1×1: text + controls */
+@container (min-height: 260px) { /* 2×2: art on top */
+  .np { flex-direction: column; align-items: stretch; gap: 10px; } .np-art { width: min(100cqw, 100cqh - 150px); align-self: center; } }
+@container (max-height: 160px) { /* one row high: drop the label + clock */
+  .np-main > .lbl, .np-tm { display: none; } .np-main { justify-content: center; } .np-t { margin-top: 0; } .np.idle .np-a { margin-bottom: 0; }
+  .np-bar { margin-top: 4px; } .np-ctl { margin-top: 4px; } .np-ctl .b { width: 30px; height: 30px; } .np-ctl .pp, .np-ctl .pp:hover { width: 34px; height: 34px; } }
 .tile canvas.waves { flex: 1; width: 100%; min-height: 0; display: block; margin-top: 8px; --wave-accent: var(--t-accent); }
 .gauge { width: 100%; height: auto; align-self: center; touch-action: none; cursor: grab; outline: none; border-radius: 50%; }
 .gauge.drag, .cl-vol.drag { cursor: grabbing; }
@@ -404,6 +430,7 @@ const TILES = {
   media: { name: "Media", w: 2, h: 1, c: "dark", s: "soft", render: () => mediaTile() },
   waves: { name: "Waves", w: 2, h: 1, c: "dark", s: "soft", render: () => `
       <div class="lbl"><span>Waves</span><span class="wlbl">${waveLabel()}</span></div><canvas class="waves" aria-hidden="true"></canvas>` },
+  np: { name: "Now playing", w: 2, h: 1, c: "dark", s: "soft", render: () => npTile() },
   info: { name: "Device info", w: 1, h: 1, c: "dark", s: "soft", render: () => `
       <div class="lbl"><span>Device</span></div><div class="grow"></div>
       <div class="big" style="font-size:clamp(16px, 15cqw, 34px)">${S.firmware || "--"}</div>
@@ -620,6 +647,80 @@ function addMedia(urls) {
   return true;
 }
 const toggleMedia = open => { document.body.classList.toggle("mopen", open); if (open) drawMediaSheet(); };
+
+/* ── Now playing (#6): the OS media session (Windows GSMTC / Linux MPRIS / macOS Spotify+Music) + prev · play/pause · next ──
+   The backend pushes npTick(info) on track / play-state change or a seek; the position is extrapolated here between pushes. */
+let NP = null, npAt = 0;
+const NPI = {
+  prev: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h2.2v14H6zM19 5.2v13.6L9.2 12z"/></svg>`,
+  next: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.8 5H18v14h-2.2zM5 5.2v13.6L14.8 12z"/></svg>`,
+  play: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4.8v14.4L19.5 12z"/></svg>`,
+  pause: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 4.5h3.8v15H6.5zM13.7 4.5h3.8v15h-3.8z"/></svg>`,
+  back10: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5a7.5 7.5 0 1 1-7.1 5.1" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M3.6 4.2l1.6 5.9 5.6-2.4z"/><text x="12.4" y="16" font-size="7.6" font-weight="700" text-anchor="middle" font-family="sans-serif">10</text></svg>`,
+  fwd10: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5a7.5 7.5 0 1 0 7.1 5.1" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M20.4 4.2l-1.6 5.9-5.6-2.4z"/><text x="11.6" y="16" font-size="7.6" font-weight="700" text-anchor="middle" font-family="sans-serif">10</text></svg>`,
+  note: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17.5V5.5l10-2v12" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="6.5" cy="17.5" r="2.5"/><circle cx="16.5" cy="15.5" r="2.5"/></svg>` };
+const npPos = (now = Date.now()) => !NP ? 0 : Math.min(NP.dur || Infinity, NP.pos + (NP.playing ? (now - npAt) / 1000 : 0));
+const mmss = s => { s = Math.max(0, Math.floor(s)); const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = String(s % 60).padStart(2, "0"); return h ? `${h}:${String(m).padStart(2, "0")}:${x}` : `${m}:${x}`; };
+const okArt = u => typeof u === "string" && (/^https:\/\//i.test(u) || /^data:image\/(png|jpe?g|webp|gif|bmp);base64,[\w+/=]+$/i.test(u));
+const npArt = d => d && okArt(d.art) ? d.art : "";
+const npKey = d => esc(d ? `${d.app}|${d.title}|${d.artist}|${npArt(d).length}` : "none"); // art/background rebuild only on a new track
+// Skip not allowed by the app (e.g. a single YouTube video) but seeking is -> the side buttons become −10 s / +10 s
+function npSide(d, dir) {
+  const can = d.can || {}, skip = can[dir] !== false, seek = can.seek !== false;
+  if (skip) return `<button class="b" data-np="${dir}" aria-label="${dir === "next" ? "Next" : "Previous"}">${NPI[dir]}</button>`;
+  const v = dir === "next" ? "fwd10" : "back10";
+  return `<button class="b seek" data-np="${v}" aria-label="${dir === "next" ? "Forward" : "Back"} 10 seconds" title="${dir === "next" ? "+" : "−"}10 s" ${seek ? "" : "disabled"}>${NPI[v]}</button>`;
+}
+function npCtl(d) {
+  return `<div class="np-ctl">${npSide(d, "prev")}<button class="b pp" data-np="toggle" aria-label="${d.playing ? "Pause" : "Play"}">${d.playing ? NPI.pause : NPI.play}</button>${npSide(d, "next")}</div>`;
+}
+function npIdle() {
+  const off = META && META.nowplaying === false;
+  return [off ? "Not available here" : "Nothing playing", off ? "No media service on this system" : "Play music or a video in any app"];
+}
+function npTile() {
+  const d = NP;
+  if (!d) { const [t, a] = npIdle(); return `<div class="np idle"><div class="np-art">${NPI.note}</div><div class="np-main"><div class="lbl"><span>Now playing</span></div><div class="np-t">${t}</div><div class="np-a">${a}</div></div></div>`; }
+  const art = npArt(d);
+  return `<div class="np ${d.playing ? "on" : ""}">
+    <div class="np-art" data-live data-key="${npKey(d)}">${art ? `<img src="${esc(art)}" alt="">` : NPI.note}</div>
+    <div class="np-main">
+      <div class="lbl"><span>Now playing</span><span class="np-app">${esc(d.app)}</span></div>
+      <div class="np-t" title="${esc(d.title)}">${esc(d.title || "Unknown")}</div>
+      <div class="np-a">${esc(d.artist || d.album || "")}</div>
+      ${npBar(d)}${npCtl(d)}
+    </div></div>`;
+}
+const npBar = d => d.dur ? `<div class="np-bar"><i style="width:${(npPos() / d.dur * 100).toFixed(2)}%"></i></div><div class="np-tm"><span class="np-cur">${mmss(npPos())}</span><span>${mmss(d.dur)}</span></div>` : "";
+function npCells() {
+  const d = NP;
+  if (!d) { const [t, a] = npIdle(); return `<div class="cl cl-np idle"><div class="np-note">${NPI.note}</div><div class="cl-title">${t}</div><div class="cl-sub">${a}</div></div>`; }
+  const art = npArt(d);
+  return `<div class="np-bg" data-live data-key="${npKey(d)}">${art ? `<img src="${esc(art)}" alt="">` : ""}</div>
+    <div class="cl cl-np ${d.playing ? "on" : ""}"><div class="cl-sub np-app">${esc(d.app)}</div><div class="cl-title np-t" title="${esc(d.title)}">${esc(d.title || "Unknown")}</div>
+    <div class="cl-sub np-a">${esc(d.artist || d.album || "")}</div>${npBar(d)}${npCtl(d)}</div>`;
+}
+function npTick(d) {
+  NP = d && typeof d === "object" && (d.title || d.artist) ? d : null; npAt = Date.now();
+  if (ptrDown) return; // pointerup re-renders every tile
+  document.querySelectorAll(".tile.np").forEach(el => morph(el.querySelector(".body"), isCells() ? npCells() : npTile()));
+}
+function npCmd(v) {
+  api().np_cmd(v);
+  if (!NP) return; // optimistic; the watcher confirms within ~1 s
+  if (v === "toggle") npTick({ ...NP, pos: npPos(), playing: !NP.playing });
+  if (v === "back10" || v === "fwd10") { const p = npPos() + (v === "fwd10" ? 10 : -10); npTick({ ...NP, pos: Math.max(0, NP.dur ? Math.min(p, NP.dur) : p) }); }
+}
+setInterval(() => { // progress bar + clock, without a re-render
+  if (document.hidden || !NP || !NP.dur) return;
+  const p = npPos();
+  document.querySelectorAll(".tile.np").forEach(el => {
+    const i = el.querySelector(".np-bar i"), c = el.querySelector(".np-cur");
+    if (i) i.style.width = (p / NP.dur * 100).toFixed(2) + "%";
+    if (c) c.textContent = mmss(p);
+  });
+}, 1000);
+Object.assign(TILES.np, { blob: () => npCells() });
 
 Object.assign(TILES.waves, { blob: () => `<div class="cl cl-waves"><div class="cl-title">Waves</div><canvas class="waves" aria-hidden="true"></canvas><div class="cl-sub wlbl">${waveLabel()}</div></div>` });
 
@@ -883,6 +984,7 @@ async function loadDevices() {
 async function init() {
   [META, P] = await Promise.all([api().meta(), api().prefs()]);
   if (META.audio) api().volume().then(v => v && volTick(v.v, v.m));
+  if (META.nowplaying) api().now_playing().then(npTick);
   P = { ...DEFAULT_PREFS(), ...(P || {}) };
   if (!["light", "dark", "blob", "blobc"].includes(P.theme)) P.theme = "dark"; // e.g. the removed "retro" theme
   // tiles added in an update land right after the hero (where people look), not at the bottom of an old layout
@@ -906,6 +1008,8 @@ async function init() {
     }
     if (e.target.closest("[data-media-cfg]")) return toggleMedia(true);
     if (document.body.classList.contains("editing")) return;
+    const npb = e.target.closest("[data-np]"); // works without buds connected
+    if (npb) return npCmd(npb.dataset.np);
     const el = e.target.closest("[data-act]");
     if (!el || !S || S.status !== "connected") return;
     act(el.dataset.act, el.dataset.v);

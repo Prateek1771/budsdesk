@@ -20,6 +20,7 @@ import webview
 import audio
 import buds
 import localserver
+import nowplaying
 import platform_bt
 
 APP = "BudsDesk"
@@ -96,8 +97,8 @@ class Session:
 
 
 class Api:
-    def __init__(self, session: Session, volume: "audio.Volume", meter: "audio.Meter"):
-        self._s, self._vol, self._meter = session, volume, meter
+    def __init__(self, session: Session, volume: "audio.Volume", meter: "audio.Meter", np: "nowplaying.NowPlaying"):
+        self._s, self._vol, self._meter, self._np = session, volume, meter, np
         self._window = None  # set after create_window (needed for native file dialogs)
 
     def _b(self):
@@ -113,7 +114,14 @@ class Api:
     def meta(self):
         return {"types": buds.GESTURE_TYPES, "actions": buds.ACTIONS, "generic_actions": buds.models.GENERIC_ACTIONS,
                 "platform": sys.platform, "audio": self._vol.available,
-                "levels": self._meter.available}
+                "levels": self._meter.available, "nowplaying": self._np.available}
+
+    # now playing tile (#6): whatever the OS media session reports, plus prev / play-pause / next
+    def now_playing(self):
+        return self._np.get()
+
+    def np_cmd(self, name):
+        self._np.cmd(str(name))  # NowPlaying.cmd ignores anything outside nowplaying.CMDS
 
     # system volume (#2): the Smart Dial gauge mirrors it, dragging the gauge sets it
     def volume(self):
@@ -255,7 +263,8 @@ def main():
     volume, meter = audio.Volume(), audio.Meter().start()
     # UI over http://127.0.0.1:<random> (not file://): YouTube embeds need a referrer (#5) and /media/ serves user files
     server = localserver.LocalServer(os.path.join(HERE, "ui"), MEDIA_DIR)
-    api = Api(session, volume, meter)
+    np = nowplaying.NowPlaying()
+    api = Api(session, volume, meter, np)
     window = webview.create_window(APP, server.url + "/index.html", js_api=api,
                                    width=1060, height=860, min_size=(420, 560), background_color="#e7e8ec")
     api._window = window
@@ -286,6 +295,14 @@ def main():
             except Exception:
                 pass
     volume.watch(on_volume)
+
+    def on_np(info):  # watcher thread; track / play-state change or a seek
+        if window:
+            try:
+                window.evaluate_js(f"window.npTick && npTick({json.dumps(info)})")
+            except Exception:
+                pass
+    np.watch(on_np)
     icon = make_tray(window, session, quit_app)
     webview.start(lambda: session.pick(sys.argv[1] if len(sys.argv) > 1 else None),
                   **({"gui": "qt", "icon": os.path.join(HERE, "ui", "icon.png")} if sys.platform == "linux" else {}))
